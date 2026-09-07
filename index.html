@@ -278,28 +278,42 @@
   @media (prefers-reduced-motion: reduce){ .skeleton-line{ animation:none; } }
 
   .heartBadge{
-    position:absolute; top:20px; right:20px; z-index:2;
-    width:34px; height:34px; border-radius:50%; border:none; cursor:pointer;
-    background:rgba(0,0,0,0.25); display:flex; align-items:center; justify-content:center;
+    position:absolute; top:18px; right:18px; z-index:2;
+    width:36px; height:36px; border-radius:50%; cursor:pointer;
+    background:rgba(255,255,255,0.9); border:1px solid var(--line);
+    display:flex; align-items:center; justify-content:center;
     touch-action:manipulation; padding:0; appearance:none; -webkit-appearance:none; box-sizing:border-box;
+    box-shadow:0 2px 8px -4px rgba(0,0,0,0.2); transition:border-color .15s, background .15s, transform .12s;
   }
-  .heartIcon{ width:18px; height:18px; fill:none; stroke:var(--ink-dim); stroke-width:1.8; transition:fill .12s, stroke .12s, transform .12s; }
+  .heartBadge:hover{ border-color:var(--eosin-dim); }
+  .heartBadge.liked{ background:var(--soft-orange); border-color:var(--eosin-dim); }
+  .heartIcon{ width:19px; height:19px; fill:none; stroke:var(--ink-dim); stroke-width:1.9;
+    stroke-linejoin:round; stroke-linecap:round; transition:fill .18s ease, stroke .18s ease, transform .2s cubic-bezier(.17,.89,.32,1.49); }
   .heartBadge.liked .heartIcon{ fill:var(--eosin); stroke:var(--eosin); }
-  .heartBadge:active .heartIcon{ transform:scale(0.88); }
+  .heartBadge.liked .heartIcon{ animation:heartTick .32s cubic-bezier(.17,.89,.32,1.49); }
+  .heartBadge:active{ transform:scale(0.92); }
+  @keyframes heartTick{ 0%{ transform:scale(1); } 40%{ transform:scale(1.28); } 70%{ transform:scale(0.92); } 100%{ transform:scale(1); } }
 
   .heartBurst{
     position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
     pointer-events:none; opacity:0; z-index:5;
   }
-  .heartBurst svg{ width:96px; height:96px; fill:#fff; filter:drop-shadow(0 4px 18px rgba(0,0,0,0.45)); }
-  .heartBurst.burst{ animation:heartPop .7s cubic-bezier(.17,.89,.32,1.49); }
+  .heartBurst svg{ width:104px; height:104px; fill:var(--eosin); stroke:none;
+    filter:drop-shadow(0 6px 20px rgba(234,88,12,0.4)); }
+  .heartBurst.burst{ animation:heartPop .72s cubic-bezier(.17,.89,.32,1.49); }
   @keyframes heartPop{
-    0%{ opacity:0; transform:scale(0.3); }
-    18%{ opacity:1; transform:scale(1.15); }
-    32%{ transform:scale(0.95); }
-    45%{ transform:scale(1.05); }
-    75%{ opacity:1; transform:scale(1); }
-    100%{ opacity:0; transform:scale(1); }
+    0%{ opacity:0; transform:scale(0.2) rotate(-8deg); }
+    15%{ opacity:0.95; transform:scale(1.2) rotate(3deg); }
+    30%{ transform:scale(0.92) rotate(-2deg); }
+    45%{ transform:scale(1.06) rotate(1deg); }
+    60%{ transform:scale(0.98) rotate(0deg); }
+    78%{ opacity:0.95; transform:scale(1); }
+    100%{ opacity:0; transform:scale(1.08); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .heartBadge.liked .heartIcon{ animation:none; }
+    .heartBurst.burst{ animation:heartFade .5s ease; }
+    @keyframes heartFade{ 0%{opacity:0;} 30%{opacity:0.9;} 100%{opacity:0;} }
   }
 
   .likedRow{
@@ -372,13 +386,20 @@
     color:var(--ink-dim); border-top:1px solid var(--line); line-height:1.5;
   }
 
-  table.short-table{ width:100%; border-collapse:collapse; margin:6px 0 14px; font-size:14px;
-    display:block; overflow-x:auto; white-space:nowrap; }
-  table.short-table thead, table.short-table tbody{ display:table; width:100%; table-layout:fixed; }
-  table.short-table th, table.short-table td{ border:1px solid var(--line); padding:8px 10px; text-align:left;
-    white-space:normal; vertical-align:top; }
+  /* Tables scroll horizontally when they're too wide for the card, rather than
+     cramming every column into the viewport (which collides the text). Narrow
+     tables still stretch to fill. min-width on cells sets the point at which a
+     table becomes wide enough to scroll. */
+  .short-table-wrap{ margin:6px 0 14px; overflow-x:auto; -webkit-overflow-scrolling:touch;
+    border-radius:10px; position:relative; }
+  .short-table-wrap::-webkit-scrollbar{ height:6px; }
+  .short-table-wrap::-webkit-scrollbar-thumb{ background:var(--eosin-dim); border-radius:6px; }
+  table.short-table{ border-collapse:collapse; margin:0; font-size:14px;
+    width:100%; min-width:max-content; table-layout:auto; }
+  table.short-table th, table.short-table td{ border:1px solid var(--line); padding:7px 9px; text-align:left;
+    vertical-align:top; white-space:normal; overflow-wrap:break-word; min-width:76px; max-width:210px; }
   table.short-table th{ background:rgba(249,115,22,0.09); color:var(--eosin); font-family:'IBM Plex Mono',monospace;
-    font-size:10.5px; text-transform:uppercase; letter-spacing:0.05em; font-weight:500; }
+    font-size:10.5px; text-transform:uppercase; letter-spacing:0.05em; font-weight:500; white-space:nowrap; }
   table.short-table tr:nth-child(even) td{ background:rgba(255,255,255,0.02); }
 
   .fig-ref{ display:flex; align-items:center; gap:7px; font-family:'IBM Plex Mono',monospace; font-size:11.5px;
@@ -633,7 +654,7 @@
   let mermaidInited = false;
   let hydrationObserver = null;
 
-  const HEART_SVG = '<svg viewBox="0 0 24 24" class="heartIcon"><path d="M12 21s-6.7-4.35-9.3-8.1C1.1 10.5 1.6 7.4 4 5.8c2.1-1.4 4.6-.8 6 1 .5.6.8 1 .9 1.2.1-.2.4-.6.9-1.2 1.4-1.8 3.9-2.4 6-1 2.4 1.6 2.9 4.7 1.3 7.1C18.7 16.65 12 21 12 21z"/></svg>';
+  const HEART_SVG = '<svg viewBox="0 0 24 24" class="heartIcon"><path d="M12 20.3l-1.45-1.32C5.4 14.24 2 11.16 2 7.5 2 4.42 4.42 2 7.5 2c1.74 0 3.41.81 4.5 2.09C13.09 2.81 14.76 2 16.5 2 19.58 2 22 4.42 22 7.5c0 3.66-3.4 6.74-8.55 11.48L12 20.3z"/></svg>';
 
   // Build the full inner HTML for a card panel (used on hydration).
   function cardPanelHTML(card, pos){
@@ -645,7 +666,7 @@
       '</div>' +
       '<h2>'+escapeHtml(card.title)+'</h2>' +
       '<div class="body">'+formatBody(card.body)+'</div>' +
-      '<div class="heartBurst" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 21s-6.7-4.35-9.3-8.1C1.1 10.5 1.6 7.4 4 5.8c2.1-1.4 4.6-.8 6 1 .5.6.8 1 .9 1.2.1-.2.4-.6.9-1.2 1.4-1.8 3.9-2.4 6-1 2.4 1.6 2.9 4.7 1.3 7.1C18.7 16.65 12 21 12 21z"/></svg></div>' +
+      '<div class="heartBurst" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 20.3l-1.45-1.32C5.4 14.24 2 11.16 2 7.5 2 4.42 4.42 2 7.5 2c1.74 0 3.41.81 4.5 2.09C13.09 2.81 14.76 2 16.5 2 19.58 2 22 4.42 22 7.5c0 3.66-3.4 6.74-8.55 11.48L12 20.3z"/></svg></div>' +
     '</div>';
   }
 
@@ -1033,10 +1054,10 @@ Here is the source document to convert:
           rows.push(splitTableRow(lines[j]));
           j++;
         }
-        const html = '<table class="short-table"><thead><tr>' +
+        const html = '<div class="short-table-wrap"><table class="short-table"><thead><tr>' +
           header.map(h => `<th>${inline(h)}</th>`).join('') + '</tr></thead><tbody>' +
           rows.map(r => '<tr>' + r.map(c => `<td>${inline(c)}</td>`).join('') + '</tr>').join('') +
-          '</tbody></table>';
+          '</tbody></table></div>';
         kept.push(stash(html));
         i = j - 1;
         continue;
@@ -1295,7 +1316,7 @@ Here is the source document to convert:
     const items = cardIndexList.filter(c => likedPositions.has(c.pos)).sort((a,b) => a.pos - b.pos);
     likedList.innerHTML = items.map(it => `
       <button type="button" class="likedRow" data-pos="${it.pos}">
-        <svg class="heartIcon" viewBox="0 0 24 24"><path d="M12 21s-6.7-4.35-9.3-8.1C1.1 10.5 1.6 7.4 4 5.8c2.1-1.4 4.6-.8 6 1 .5.6.8 1 .9 1.2.1-.2.4-.6.9-1.2 1.4-1.8 3.9-2.4 6-1 2.4 1.6 2.9 4.7 1.3 7.1C18.7 16.65 12 21 12 21z"/></svg>
+        <svg class="heartIcon" viewBox="0 0 24 24"><path d="M12 20.3l-1.45-1.32C5.4 14.24 2 11.16 2 7.5 2 4.42 4.42 2 7.5 2c1.74 0 3.41.81 4.5 2.09C13.09 2.81 14.76 2 16.5 2 19.58 2 22 4.42 22 7.5c0 3.66-3.4 6.74-8.55 11.48L12 20.3z"/></svg>
         <span class="lrIdx">${String(it.pos).padStart(2,'0')}</span>
         <span class="lrTitle">${escapeHtml(it.title)}</span>
       </button>

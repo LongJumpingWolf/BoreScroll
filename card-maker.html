@@ -215,9 +215,12 @@
   .pvBody figure.card-figure{ margin:6px 0 12px; border-radius:12px; overflow:hidden; border:1px solid var(--line); background:var(--field); }
   .pvBody figure.card-figure img{ display:block; width:100%; max-height:220px; object-fit:cover; }
   .pvBody figure.card-figure figcaption{ padding:7px 11px; font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--ink-dim); border-top:1px solid var(--line); }
-  .pvBody table.short-table{ width:100%; border-collapse:collapse; margin:6px 0 12px; font-size:13px; display:block; overflow-x:auto; }
-  .pvBody table.short-table th, .pvBody table.short-table td{ border:1px solid var(--line); padding:7px 9px; text-align:left; vertical-align:top; }
-  .pvBody table.short-table th{ background:rgba(234,88,12,0.09); color:var(--eosin); font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; }
+  .pvBody .short-table-wrap{ margin:6px 0 12px; overflow-x:auto; -webkit-overflow-scrolling:touch; border-radius:10px; }
+  .pvBody .short-table-wrap::-webkit-scrollbar{ height:6px; }
+  .pvBody .short-table-wrap::-webkit-scrollbar-thumb{ background:var(--eosin-dim); border-radius:6px; }
+  .pvBody table.short-table{ border-collapse:collapse; margin:0; font-size:13px; width:100%; min-width:max-content; table-layout:auto; }
+  .pvBody table.short-table th, .pvBody table.short-table td{ border:1px solid var(--line); padding:7px 9px; text-align:left; vertical-align:top; white-space:normal; overflow-wrap:break-word; min-width:80px; max-width:210px; }
+  .pvBody table.short-table th{ background:rgba(234,88,12,0.09); color:var(--eosin); font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; white-space:nowrap; }
   .pvBody .fig-ref{ display:flex; align-items:center; gap:6px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--gold); border:1px solid rgba(194,65,12,0.35); border-radius:9px; padding:7px 11px; margin:6px 0 12px; background:rgba(194,65,12,0.06); width:fit-content; }
   .pvBody .mermaid-wrap{ margin:6px 0 12px; padding:14px; background:var(--field); border:1px solid var(--line); border-radius:12px; overflow-x:auto; display:flex; justify-content:center; }
   .pvBody .mermaid-wrap svg{ max-width:100%; height:auto; }
@@ -428,10 +431,10 @@
         var header = splitTableRow(lines[i]);
         var j = i + 2; var rows = [];
         while (j < lines.length && /^\s*\|.*\|\s*$/.test(lines[j])){ rows.push(splitTableRow(lines[j])); j++; }
-        var html = '<table class="short-table"><thead><tr>' +
+        var html = '<div class="short-table-wrap"><table class="short-table"><thead><tr>' +
           header.map(function(h){ return '<th>' + inline(h) + '</th>'; }).join('') + '</tr></thead><tbody>' +
           rows.map(function(r){ return '<tr>' + r.map(function(c){ return '<td>' + inline(c) + '</td>'; }).join('') + '</tr>'; }).join('') +
-          '</tbody></table>';
+          '</tbody></table></div>';
         kept.push(stash(html)); i = j - 1; continue;
       }
       kept.push(lines[i]);
