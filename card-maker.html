@@ -540,7 +540,7 @@
     dirty: false          // unsaved changes since last project save
   };
 
-  function newCard(){ return { id: uid(), title: '', body: '', tag: '' }; }
+  function newCard(){ return { id: uid(), title: '', body: '', tag: '', images: {} }; }
   function currentCard(){ return state.cards.find(function(c){ return c.id === state.currentId; }) || null; }
 
   /* ---- draft autosave: the crash-proof layer ---- */
@@ -559,7 +559,7 @@
     var d = readJSON(K.draft, null);
     if (d && Array.isArray(d.cards)){
       state.name = d.name || 'Untitled Deck';
-      state.cards = d.cards.map(function(c){ return { id: c.id || uid(), title: c.title||'', body: c.body||'', tag: c.tag||'' }; });
+      state.cards = d.cards.map(function(c){ return { id: c.id || uid(), title: c.title||'', body: c.body||'', tag: c.tag||'', images: c.images||{} }; });
       state.currentId = d.currentId || (state.cards[0] && state.cards[0].id) || null;
       state.projectId = d.projectId || null;
       return true;
@@ -593,7 +593,7 @@
     var p = projects[id];
     if (!p) return false;
     state.name = p.name;
-    state.cards = JSON.parse(JSON.stringify(p.cards)).map(function(c){ return { id: c.id||uid(), title:c.title||'', body:c.body||'', tag:c.tag||'' }; });
+    state.cards = JSON.parse(JSON.stringify(p.cards)).map(function(c){ return { id: c.id||uid(), title:c.title||'', body:c.body||'', tag:c.tag||'', images:c.images||{} }; });
     state.projectId = id;
     state.currentId = state.cards[0] ? state.cards[0].id : null;
     state.dirty = false;
@@ -624,7 +624,7 @@
     if (!b) return false;
     pushBackup('pre-restore'); // snapshot current state first, so a restore is itself undoable
     state.name = b.name || 'Restored Deck';
-    state.cards = JSON.parse(JSON.stringify(b.cards)).map(function(c){ return { id:c.id||uid(), title:c.title||'', body:c.body||'', tag:c.tag||'' }; });
+    state.cards = JSON.parse(JSON.stringify(b.cards)).map(function(c){ return { id:c.id||uid(), title:c.title||'', body:c.body||'', tag:c.tag||'', images:c.images||{} }; });
     state.currentId = state.cards[0] ? state.cards[0].id : null;
     state.dirty = true;
     saveDraftNow();
@@ -744,6 +744,58 @@
     }).join('');
   }
 
+  /* ============================================================================
+     IMAGE TOKENS — the textarea shows a short readable token for each embedded
+     image (e.g. ![Lung diagram](img:lung-diagram)) instead of the raw multi-KB
+     data-URL, which otherwise floods the field. The card's canonical body always
+     stores the FULL data-URL, so the reader, preview, and export are unaffected.
+     Each card owns an images map { tokenId: fullDataUrl }.
+     ========================================================================= */
+  function ensureImages(card){ if (!card.images) card.images = {}; return card.images; }
+  function slugFromAlt(alt){
+    var s = String(alt||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,28);
+    return s || 'image';
+  }
+  function makeImageToken(card, alt){
+    var images = ensureImages(card);
+    var base = slugFromAlt(alt), id = base, n = 2;
+    while (images[id] !== undefined && id !== base) id = base + '-' + (n++);
+    // ensure uniqueness even on first collision
+    if (images[id] !== undefined){ id = base + '-' + (n++); }
+    while (images[id] !== undefined) id = base + '-' + (n++);
+    return id;
+  }
+  // Convert a canonical body (full data-URLs) into display text (short tokens),
+  // registering each data-URL in the card's images map.
+  function bodyToDisplay(card){
+    var images = ensureImages(card);
+    // reset map to only what's actually present, rebuilt from the body
+    var fresh = {};
+    var text = String(card.body || '').replace(/!\[([^\]]*)\]\((data:[^)\s]+)\)/g, function(m, alt, url){
+      // reuse an existing id if this exact url is already mapped, else mint one
+      var existing = null;
+      for (var k in images){ if (images[k] === url){ existing = k; break; } }
+      var id = existing || (function(){
+        var base = slugFromAlt(alt), cand = base, n = 2;
+        while (fresh[cand] !== undefined) cand = base + '-' + (n++);
+        return cand;
+      })();
+      fresh[id] = url;
+      return '![' + alt + '](img:' + id + ')';
+    });
+    card.images = fresh;
+    return text;
+  }
+  // Convert display text (short tokens) back into a canonical body (full URLs).
+  function displayToBody(text, card){
+    var images = ensureImages(card);
+    return String(text || '').replace(/!\[([^\]]*)\]\(img:([a-z0-9-]+)\)/gi, function(m, alt, id){
+      var url = images[id];
+      if (!url) return m; // unknown token — leave as-is rather than lose data
+      return '![' + alt + '](' + url + ')';
+    });
+  }
+
   function renderEditor(){
     var pane = document.getElementById('editorPane');
     if (!pane) return;
@@ -763,7 +815,7 @@
       '<input class="tagInput" id="fTag" value="' + escapeHtml(card.tag) + '" placeholder="e.g. Metastasis \u2014 shows as a small pill on the card">' +
       '<label class="fieldLabel">Body</label>' +
       buildToolbar() +
-      '<textarea class="bodyInput" id="fBody" placeholder="Write the card body. Markdown works: **bold**, *italic*, ==highlight==, lists, tables, > quotes, `code`, links, images." spellcheck="true">' + escapeHtml(card.body) + '</textarea>' +
+      '<textarea class="bodyInput" id="fBody" placeholder="Write the card body. Markdown works: **bold**, *italic*, ==highlight==, lists, tables, > quotes, `code`, links, images." spellcheck="true">' + escapeHtml(bodyToDisplay(card)) + '</textarea>' +
       '<div class="charCount" id="charCount"></div>' +
       '<div class="editorActions">' +
         '<button class="btn" id="btnDupCard">Duplicate</button>' +
@@ -821,7 +873,10 @@
   function updateCharCount(){
     var el = document.getElementById('charCount'); var card = currentCard();
     if (!el || !card) return;
-    var words = (card.body.trim().match(/\S+/g) || []).length;
+    // count words without letting embedded data-URLs inflate the number, and
+    // without mutating the card's image map (pure): collapse each image to 1 token
+    var counted = String(card.body || '').replace(/!\[[^\]]*\]\((?:data:[^)\s]+|img:[a-z0-9-]+)\)/gi, ' [image] ');
+    var words = (counted.trim().match(/\S+/g) || []).length;
     var over = words > 90;
     el.innerHTML = '<span class="' + (over?'warn':'') + '">' + words + ' words</span>' + (over ? ' \u00b7 over the ~90-word soft target' : '');
   }
@@ -853,7 +908,7 @@
   function duplicateCurrent(){
     var card = currentCard(); if (!card) return;
     var idx = state.cards.indexOf(card);
-    var copy = { id: uid(), title: card.title, body: card.body, tag: card.tag };
+    var copy = { id: uid(), title: card.title, body: card.body, tag: card.tag, images: JSON.parse(JSON.stringify(card.images || {})) };
     state.cards.splice(idx + 1, 0, copy);
     state.currentId = copy.id;
     scheduleDraftSave();
@@ -894,35 +949,47 @@
     var tE = document.getElementById('fTitle'), gE = document.getElementById('fTag'), bE = document.getElementById('fBody');
     if (tE) card.title = tE.value;
     if (gE) card.tag = gE.value;
-    if (bE) card.body = bE.value;
+    if (bE) card.body = displayToBody(bE.value, card); // expand image tokens to full URLs
   }
 
   /* ============================================================================
      TOOLBAR / MARKDOWN INSERTION
      ========================================================================= */
+  /* Insert text at the caret in a way the browser's native undo/redo stack
+     understands. execCommand('insertText') is the reliable cross-browser way to
+     do this — direct ta.value = ... assignment wipes the undo history, which is
+     the bug where Ctrl+Z jumped to stale content instead of undoing the edit. */
+  function insertAtCaret(ta, text){
+    ta.focus();
+    var ok = false;
+    try { ok = document.execCommand && document.execCommand('insertText', false, text); } catch(e){ ok = false; }
+    if (!ok){
+      // Fallback: setRangeText is also undoable in modern browsers.
+      var s = ta.selectionStart, e = ta.selectionEnd;
+      if (typeof ta.setRangeText === 'function'){
+        ta.setRangeText(text, s, e, 'end');
+      } else {
+        ta.value = ta.value.slice(0, s) + text + ta.value.slice(e);
+        ta.selectionStart = ta.selectionEnd = s + text.length;
+      }
+      ta.dispatchEvent(new Event('input', { bubbles:true }));
+    }
+  }
   function wrapSelection(before, after, placeholder){
     var ta = document.getElementById('fBody'); if (!ta) return;
     var s = ta.selectionStart, e = ta.selectionEnd;
     var sel = ta.value.slice(s, e) || placeholder || '';
-    var next = ta.value.slice(0, s) + before + sel + after + ta.value.slice(e);
-    ta.value = next;
-    ta.focus();
+    insertAtCaret(ta, before + sel + after);
+    // reselect the inner text so the user can keep typing over the placeholder
     ta.selectionStart = s + before.length;
     ta.selectionEnd = s + before.length + sel.length;
-    onBodyInput();
   }
   function insertBlock(text){
     var ta = document.getElementById('fBody'); if (!ta) return;
     var s = ta.selectionStart;
     var pre = ta.value.slice(0, s);
-    var needsNL = pre.length && !pre.endsWith('\n\n');
-    var lead = pre.length ? (pre.endsWith('\n') ? '\n' : '\n\n') : '';
-    var insert = lead + text + '\n';
-    ta.value = pre + insert + ta.value.slice(s);
-    ta.focus();
-    var caret = (pre + insert).length;
-    ta.selectionStart = ta.selectionEnd = caret;
-    onBodyInput();
+    var lead = pre.length ? (pre.endsWith('\n\n') ? '' : (pre.endsWith('\n') ? '\n' : '\n\n')) : '';
+    insertAtCaret(ta, lead + text + '\n');
   }
   function applyMd(kind){
     switch(kind){
@@ -954,6 +1021,7 @@
   }
   function embedImageFile(file){
     if (!/^image\//.test(file.type)){ showToast('That is not an image file.'); return; }
+    var nameAlt = (file.name || 'image').replace(/\.[a-z0-9]+$/i,'').replace(/[_\-]+/g,' ').trim() || 'image';
     var reader = new FileReader();
     reader.onload = function(){
       var dataUrl = reader.result;
@@ -961,8 +1029,8 @@
       maybeDownscale(dataUrl, file.type, function(finalUrl){
         var approxBytes = Math.ceil(finalUrl.length * 0.75);
         if (approxBytes > IMG_WARN_BYTES){
-          openConfirm('Large image', 'This image is about ' + Math.round(approxBytes/1024) + ' KB even after downscaling. Embedding very large images can fill browser storage and slow the deck. Embed it anyway?', 'Embed anyway', function(){ doInsertImage(finalUrl); });
-        } else { doInsertImage(finalUrl); }
+          openConfirm('Large image', 'This image is about ' + Math.round(approxBytes/1024) + ' KB even after downscaling. Embedding very large images can fill browser storage and slow the deck. Embed it anyway?', 'Embed anyway', function(){ doInsertImage(finalUrl, nameAlt); });
+        } else { doInsertImage(finalUrl, nameAlt); }
       });
     };
     reader.onerror = function(){ showToast('Could not read that image.'); };
@@ -987,9 +1055,16 @@
     img.onerror = function(){ cb(dataUrl); };
     img.src = dataUrl;
   }
-  function doInsertImage(dataUrl){
-    insertBlock('![caption](' + dataUrl + ')');
-    showToast('Image embedded into the card.');
+  function doInsertImage(dataUrl, suggestedAlt){
+    var card = currentCard(); if (!card){ showToast('Select a card first.'); return; }
+    var images = ensureImages(card);
+    var alt = suggestedAlt || 'image';
+    var id = makeImageToken(card, alt);
+    images[id] = dataUrl;                      // full data-URL lives in the map
+    insertBlock('![' + alt + '](img:' + id + ')'); // only a short token in the textarea
+    // onBodyInput (fired by the insert) expands the token back to the full URL
+    // in card.body, so preview/export/reader all still get the real image.
+    showToast('Image embedded \u2014 shown as a short tag while you edit.');
   }
 
   /* also allow pasting an image straight into the body textarea */
@@ -1040,14 +1115,17 @@
     bE.addEventListener('input', onBodyInput);
     bE.addEventListener('paste', handleBodyPaste);
     bE.addEventListener('keydown', function(e){
-      // Ctrl/Cmd+B / I for bold/italic inside the body
-      if ((e.ctrlKey||e.metaKey) && !e.shiftKey && !e.altKey){
+      // Formatting shortcuts. Ctrl/Cmd+Z (undo) and Ctrl/Cmd+Y or Shift+Z (redo)
+      // are deliberately NOT intercepted — insertions now go through the native
+      // undo stack, so the browser handles them correctly on their own.
+      if ((e.ctrlKey||e.metaKey) && !e.altKey){
         var k = e.key.toLowerCase();
-        if (k === 'b'){ e.preventDefault(); applyMd('bold'); }
-        else if (k === 'i'){ e.preventDefault(); applyMd('italic'); }
+        if (!e.shiftKey && k === 'b'){ e.preventDefault(); applyMd('bold'); return; }
+        if (!e.shiftKey && k === 'i'){ e.preventDefault(); applyMd('italic'); return; }
+        if (!e.shiftKey && k === 'u'){ e.preventDefault(); applyMd('underline'); return; }
       }
-      // Tab inserts two spaces rather than leaving the field
-      if (e.key === 'Tab' && !e.shiftKey){ e.preventDefault(); wrapSelection('  ','',''); }
+      // Tab inserts two spaces rather than leaving the field (undoable)
+      if (e.key === 'Tab' && !e.shiftKey){ e.preventDefault(); insertAtCaret(bE, '  '); }
     });
 
     var tb = document.getElementById('toolbar');
@@ -1064,7 +1142,7 @@
 
   function onBodyInput(){
     var c = currentCard(); var bE = document.getElementById('fBody');
-    if (c && bE){ c.body = bE.value; scheduleDraftSave(); updateCharCount(); schedulePreview(); }
+    if (c && bE){ c.body = displayToBody(bE.value, c); scheduleDraftSave(); updateCharCount(); schedulePreview(); }
   }
   function renderCardListTitle(id){
     // lightweight: just update the one list row's title without full rerender
