@@ -1,0 +1,11 @@
+{
+  "name": "shorts-reader",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Vertical scroll deck reader with close-proof break reminders (Vercel + Supabase + Upstash QStash + Web Push).",
+  "dependencies": {
+    "web-push": "^3.6.7",
+    "@supabase/supabase-js": "^2.45.4",
+    "@upstash/qstash": "^2.7.17"
+  }
+}

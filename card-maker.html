@@ -1,0 +1,1362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Card Maker — Shorts Reader</title>
+
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32x32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
+<meta name="theme-color" content="#ffffff">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Card Maker">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#ffffff; --card:#ffffff; --line: rgba(0,0,0,0.14);
+    --ink:#0a0a0a; --ink-dim:#5b6472;
+    --hema:#2563eb; --eosin:#ea580c; --eosin-dim: rgba(234,88,12,0.45); --gold:#c2410c;
+    --soft-blue:#eef4ff; --soft-orange:#fff1e8; --field:#f4f5f7;
+    --danger:#dc2626; --ok:#16a34a;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+    font-family:'Inter',system-ui,sans-serif; height:100%;
+    -webkit-text-size-adjust:100%; text-size-adjust:100%;}
+  ::selection{background:var(--hema); color:#fff;}
+  button{ font-family:'Inter',sans-serif; cursor:pointer; appearance:none; -webkit-appearance:none; }
+  button:disabled{ opacity:.4; cursor:not-allowed; }
+
+  /* ---------- app shell ---------- */
+  .app{ display:flex; flex-direction:column; height:100vh; height:100dvh; }
+
+  header.bar{
+    flex-shrink:0; display:flex; align-items:center; gap:12px;
+    padding:calc(12px + env(safe-area-inset-top)) calc(18px + env(safe-area-inset-right)) 12px calc(18px + env(safe-area-inset-left));
+    background:#fff; border-bottom:1px solid var(--line); position:relative; z-index:30;
+  }
+  header.bar .logo{
+    font-family:'Fraunces',serif; font-weight:700; font-size:16px; letter-spacing:-0.01em;
+    color:var(--ink); white-space:nowrap;
+  }
+  header.bar .logo .dot{ color:var(--eosin); }
+  header.bar .deckName{
+    flex:1; min-width:0; font-family:'Fraunces',serif; font-weight:600; font-size:15px;
+    color:var(--ink); background:transparent; border:1px solid transparent; border-radius:8px;
+    padding:6px 10px; margin:0; overflow:hidden; text-overflow:ellipsis;
+  }
+  header.bar .deckName:hover{ border-color:var(--line); }
+  header.bar .deckName:focus{ outline:none; border-color:var(--eosin-dim); background:var(--field); }
+  .saveState{
+    font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-dim);
+    white-space:nowrap; display:flex; align-items:center; gap:5px;
+  }
+  .saveState .pip{ width:7px; height:7px; border-radius:50%; background:var(--ink-dim); transition:background .2s; }
+  .saveState.saved .pip{ background:var(--ok); }
+  .saveState.dirty .pip{ background:var(--eosin); }
+
+  .barBtns{ display:flex; align-items:center; gap:7px; flex-shrink:0; }
+  .btn{
+    font-size:12.5px; font-weight:500; border-radius:9px; padding:9px 13px; min-height:38px;
+    border:1px solid var(--line); background:#fff; color:var(--ink); white-space:nowrap;
+    display:inline-flex; align-items:center; gap:6px;
+  }
+  .btn:hover{ border-color:var(--eosin-dim); }
+  .btn.primary{ background:var(--hema); border-color:var(--hema); color:#fff; }
+  .btn.primary:hover{ filter:brightness(1.08); }
+  .btn.ghost{ border-color:transparent; }
+  .btn.danger{ color:var(--danger); border-color:rgba(220,38,38,0.3); }
+  .btn.danger:hover{ background:rgba(220,38,38,0.07); }
+  .btn svg{ width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  .btn.iconOnly{ padding:9px; width:38px; justify-content:center; }
+
+  .layout{ flex:1; display:flex; min-height:0; }
+
+  /* ---------- left: card list ---------- */
+  aside.cards{
+    width:290px; flex-shrink:0; border-right:1px solid var(--line);
+    display:flex; flex-direction:column; background:#fbfbfc; min-height:0;
+  }
+  .cardsHead{
+    flex-shrink:0; display:flex; align-items:center; justify-content:space-between;
+    padding:14px 16px 10px; font-family:'IBM Plex Mono',monospace; font-size:10.5px;
+    letter-spacing:0.08em; text-transform:uppercase; color:var(--ink-dim);
+  }
+  .cardsHead .addBtn{
+    border:1px solid var(--eosin-dim); background:rgba(234,88,12,0.06); color:var(--eosin);
+    border-radius:100px; padding:5px 11px; font-size:11px; font-family:'Inter',sans-serif; letter-spacing:0;
+    text-transform:none; display:inline-flex; align-items:center; gap:5px;
+  }
+  .cardsHead .addBtn:hover{ background:rgba(234,88,12,0.13); }
+  .cardsHead .addBtn svg{ width:13px; height:13px; fill:none; stroke:currentColor; stroke-width:2.2; stroke-linecap:round; }
+  .cardList{ flex:1; overflow-y:auto; padding:4px 10px 16px; }
+  .cardItem{
+    display:flex; align-items:flex-start; gap:9px; padding:10px 11px; border-radius:11px;
+    border:1px solid transparent; cursor:pointer; margin-bottom:5px; position:relative;
+    background:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.03);
+  }
+  .cardItem:hover{ border-color:var(--eosin-dim); }
+  .cardItem.active{ border-color:var(--hema); background:var(--soft-blue); }
+  .cardItem.dragging{ opacity:0.4; }
+  .cardItem.dragover{ border-top:2px solid var(--eosin); }
+  .cardItem .num{
+    flex-shrink:0; font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--gold);
+    border:1px solid rgba(194,65,12,0.35); border-radius:7px; padding:2px 6px; margin-top:1px;
+  }
+  .cardItem .ci-body{ flex:1; min-width:0; }
+  .cardItem .ci-title{
+    font-family:'Fraunces',serif; font-size:13.5px; color:var(--ink); line-height:1.3;
+    overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+  }
+  .cardItem .ci-title.empty{ color:var(--ink-dim); font-style:italic; }
+  .cardItem .ci-tag{
+    font-family:'IBM Plex Mono',monospace; font-size:9px; color:var(--eosin);
+    text-transform:uppercase; letter-spacing:0.05em; margin-top:3px;
+  }
+  .cardItem .ci-drag{
+    flex-shrink:0; color:var(--ink-dim); opacity:0; cursor:grab; padding-top:2px;
+    touch-action:none;
+  }
+  .cardItem:hover .ci-drag{ opacity:0.5; }
+  .cardItem .ci-drag svg{ width:13px; height:13px; fill:currentColor; }
+  .cardsEmpty{ text-align:center; color:var(--ink-dim); font-size:12.5px; padding:30px 16px; line-height:1.6; }
+
+  /* ---------- middle: editor ---------- */
+  main.editor{ flex:1; display:flex; flex-direction:column; min-width:0; min-height:0; overflow-y:auto; }
+  .editorInner{ max-width:720px; width:100%; margin:0 auto; padding:26px 28px 120px; }
+  .editorEmpty{
+    flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; color:var(--ink-dim); padding:40px; gap:16px;
+  }
+  .editorEmpty h2{ font-family:'Fraunces',serif; font-weight:600; color:var(--ink); font-size:22px; margin:0; }
+  .editorEmpty p{ font-size:14px; line-height:1.6; max-width:340px; margin:0; }
+
+  .fieldLabel{
+    font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.08em;
+    text-transform:uppercase; color:var(--ink-dim); margin:18px 0 7px; display:block;
+  }
+  .fieldLabel:first-child{ margin-top:0; }
+  input.titleInput{
+    width:100%; font-family:'Fraunces',serif; font-weight:600; font-size:22px; line-height:1.25;
+    border:1px solid var(--line); border-radius:12px; padding:12px 15px; background:var(--field); color:var(--ink);
+  }
+  input.titleInput:focus{ outline:none; border-color:var(--eosin-dim); background:#fff; }
+  input.tagInput{
+    width:100%; font-family:'IBM Plex Mono',monospace; font-size:13px;
+    border:1px solid var(--line); border-radius:10px; padding:9px 13px; background:var(--field); color:var(--ink);
+  }
+  input.tagInput:focus{ outline:none; border-color:var(--eosin-dim); background:#fff; }
+
+  .toolbar{
+    display:flex; flex-wrap:wrap; gap:5px; padding:7px; background:var(--field);
+    border:1px solid var(--line); border-bottom:none; border-radius:12px 12px 0 0;
+  }
+  .tbBtn{
+    border:1px solid transparent; background:#fff; color:var(--ink-dim); border-radius:7px;
+    min-width:34px; height:32px; padding:0 8px; font-size:13px; display:inline-flex;
+    align-items:center; justify-content:center; gap:5px;
+  }
+  .tbBtn:hover{ color:var(--ink); border-color:var(--line); }
+  .tbBtn b{ color:inherit; }
+  .tbBtn .mono{ font-family:'IBM Plex Mono',monospace; font-size:11px; }
+  .tbBtn svg{ width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  .tbSep{ width:1px; align-self:stretch; background:var(--line); margin:3px 2px; }
+  textarea.bodyInput{
+    width:100%; min-height:260px; resize:vertical; font-family:'IBM Plex Mono',monospace;
+    font-size:14px; line-height:1.6; border:1px solid var(--line); border-radius:0 0 12px 12px;
+    padding:14px 15px; background:#fff; color:var(--ink); display:block;
+  }
+  textarea.bodyInput:focus{ outline:none; border-color:var(--eosin-dim); }
+  .charCount{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-dim); margin-top:6px; text-align:right; }
+  .charCount .warn{ color:var(--eosin); }
+
+  .editorActions{ display:flex; gap:9px; margin-top:22px; flex-wrap:wrap; }
+
+  /* ---------- right: live preview ---------- */
+  aside.preview{
+    width:360px; flex-shrink:0; border-left:1px solid var(--line); background:#fbfbfc;
+    display:flex; flex-direction:column; min-height:0;
+  }
+  .previewHead{
+    flex-shrink:0; display:flex; align-items:center; justify-content:space-between;
+    padding:14px 16px 10px; font-family:'IBM Plex Mono',monospace; font-size:10.5px;
+    letter-spacing:0.08em; text-transform:uppercase; color:var(--ink-dim);
+  }
+  .previewStage{ flex:1; overflow-y:auto; padding:8px 18px 24px; display:flex; align-items:flex-start; justify-content:center; }
+  /* a faithful mini version of the reader's card panel */
+  .pvPanel{
+    width:100%; background:var(--card); border:1.5px solid var(--line); border-radius:20px;
+    padding:26px 22px 22px; box-shadow:0 16px 36px -28px rgba(0,0,0,0.28); position:relative; margin-top:8px;
+  }
+  .pvPanel::before{ content:""; position:absolute; left:22px; right:22px; top:0; height:3px; background:var(--eosin); border-radius:0 0 3px 3px; }
+  .pvEyebrow{ display:flex; gap:8px; margin-bottom:14px; }
+  .pvTag{ font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:0.1em; text-transform:uppercase;
+    color:var(--eosin); border:1px solid var(--eosin-dim); border-radius:100px; padding:3px 9px; }
+  .pvIdx{ font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:var(--gold);
+    border:1px solid rgba(194,65,12,0.4); border-radius:100px; padding:3px 8px; }
+  .pvTitle{ font-family:'Fraunces',serif; font-weight:600; font-size:21px; line-height:1.28; margin:0 0 14px; letter-spacing:-0.01em; }
+  .pvBody{ font-size:14.5px; line-height:1.7; color:#1f2430; }
+  .pvBody p{ margin:0 0 13px; } .pvBody p:last-child{ margin-bottom:0; }
+  .pvBody b{ color:var(--eosin); font-weight:600; } .pvBody i{ color:var(--hema); font-style:italic; }
+  .pvBody u{ text-decoration:underline; text-decoration-color:var(--eosin-dim); text-underline-offset:2px; }
+  .pvBody a{ color:var(--hema); text-decoration:underline; text-decoration-color:var(--soft-blue); text-underline-offset:2px; }
+  .pvBody code{ font-family:'IBM Plex Mono',monospace; font-size:0.88em; background:rgba(0,0,0,0.05); padding:2px 6px; border-radius:5px; color:var(--gold); }
+  .pvBody ul, .pvBody ol{ margin:4px 0 12px; padding-left:20px; } .pvBody li{ margin:4px 0; } .pvBody li::marker{ color:var(--eosin); }
+  .pvBody blockquote{ margin:8px 0 12px; padding:5px 0 5px 12px; border-left:2.5px solid var(--eosin-dim); color:var(--ink-dim); font-style:italic; }
+  .pvBody pre{ font-family:'IBM Plex Mono',monospace; font-size:12px; line-height:1.5; background:var(--field); border:1px solid var(--line); border-radius:11px; padding:12px 14px; overflow-x:auto; margin:6px 0 12px; white-space:pre-wrap; word-break:break-word; }
+  .pvBody pre code{ background:none; padding:0; color:inherit; }
+  .pvBody h3.card-subhead, .pvBody h4.card-subhead, .pvBody h5.card-subhead{ font-family:'Fraunces',serif; font-weight:600; margin:12px 0 7px; line-height:1.3; }
+  .pvBody h3.card-subhead{ font-size:16px; } .pvBody h4.card-subhead{ font-size:14px; } .pvBody h5.card-subhead{ font-size:13px; color:var(--ink-dim); }
+  .pvBody hr.card-hr{ border:none; border-top:1px solid var(--line); margin:14px 0; }
+  .pvBody mark.hl{ background:var(--soft-orange); color:var(--ink); padding:1px 4px; border-radius:4px; box-shadow:inset 0 0 0 1px rgba(234,88,12,0.25); }
+  .pvBody figure.card-figure{ margin:6px 0 12px; border-radius:12px; overflow:hidden; border:1px solid var(--line); background:var(--field); }
+  .pvBody figure.card-figure img{ display:block; width:100%; max-height:220px; object-fit:cover; }
+  .pvBody figure.card-figure figcaption{ padding:7px 11px; font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--ink-dim); border-top:1px solid var(--line); }
+  .pvBody table.short-table{ width:100%; border-collapse:collapse; margin:6px 0 12px; font-size:13px; display:block; overflow-x:auto; }
+  .pvBody table.short-table th, .pvBody table.short-table td{ border:1px solid var(--line); padding:7px 9px; text-align:left; vertical-align:top; }
+  .pvBody table.short-table th{ background:rgba(234,88,12,0.09); color:var(--eosin); font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; }
+  .pvBody .fig-ref{ display:flex; align-items:center; gap:6px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--gold); border:1px solid rgba(194,65,12,0.35); border-radius:9px; padding:7px 11px; margin:6px 0 12px; background:rgba(194,65,12,0.06); width:fit-content; }
+  .pvBody .mermaid-wrap{ margin:6px 0 12px; padding:14px; background:var(--field); border:1px solid var(--line); border-radius:12px; overflow-x:auto; display:flex; justify-content:center; }
+  .pvBody .mermaid-wrap svg{ max-width:100%; height:auto; }
+
+  /* ---------- modal (dialogs, projects, confirms) ---------- */
+  .modalBack{ position:fixed; inset:0; background:rgba(10,10,10,0.5); z-index:50; display:none; align-items:center; justify-content:center; padding:20px; }
+  .modalBack.open{ display:flex; }
+  .modal{
+    background:#fff; border:1px solid var(--line); border-radius:20px; width:100%; max-width:520px;
+    max-height:86vh; overflow-y:auto; box-shadow:0 30px 60px -30px rgba(0,0,0,0.4);
+    padding:26px 26px 22px;
+  }
+  .modal h2{ font-family:'Fraunces',serif; font-weight:700; font-size:22px; margin:0 0 6px; letter-spacing:-0.01em; }
+  .modal p.sub{ color:var(--ink-dim); font-size:13.5px; line-height:1.6; margin:0 0 18px; }
+  .modal .modalActions{ display:flex; gap:9px; justify-content:flex-end; margin-top:20px; flex-wrap:wrap; }
+  .modal label.mlabel{ font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.08em; text-transform:uppercase; color:var(--ink-dim); display:block; margin:14px 0 6px; }
+  .modal input.mInput, .modal textarea.mInput{
+    width:100%; font-family:'Inter',sans-serif; font-size:14px; border:1px solid var(--line);
+    border-radius:10px; padding:11px 13px; background:var(--field); color:var(--ink);
+  }
+  .modal textarea.mInput{ font-family:'IBM Plex Mono',monospace; font-size:13px; min-height:120px; resize:vertical; }
+  .modal input.mInput:focus, .modal textarea.mInput:focus{ outline:none; border-color:var(--eosin-dim); background:#fff; }
+
+  .projList{ display:flex; flex-direction:column; gap:8px; margin-top:6px; }
+  .projRow{ display:flex; align-items:center; gap:11px; padding:12px 13px; border:1px solid var(--line); border-radius:12px; cursor:pointer; background:#fff; }
+  .projRow:hover{ border-color:var(--eosin-dim); background:rgba(234,88,12,0.04); }
+  .projRow.current{ border-color:var(--hema); background:var(--soft-blue); }
+  .projRow .pr-main{ flex:1; min-width:0; }
+  .projRow .pr-title{ font-family:'Fraunces',serif; font-size:15px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .projRow .pr-meta{ font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--ink-dim); margin-top:2px; }
+  .projRow .pr-del{ flex-shrink:0; width:30px; height:30px; border-radius:8px; border:none; background:transparent; color:var(--ink-dim); font-size:17px; }
+  .projRow .pr-del:hover{ color:var(--danger); background:rgba(220,38,38,0.08); }
+  .projEmpty{ text-align:center; color:var(--ink-dim); font-size:13px; padding:24px 0; }
+
+  .backupRow{ display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; margin-bottom:7px; font-size:12.5px; }
+  .backupRow .bk-when{ flex:1; font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-dim); }
+  .backupRow .bk-meta{ color:var(--ink-dim); font-size:11px; }
+
+  .trashRow{ display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; margin-bottom:7px; }
+  .trashRow .tr-main{ flex:1; min-width:0; }
+  .trashRow .tr-title{ font-family:'Fraunces',serif; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .trashRow .tr-meta{ font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--ink-dim); margin-top:2px; }
+
+  .warnBox{ background:var(--soft-orange); border:1px solid var(--eosin-dim); border-radius:10px; padding:11px 13px; font-size:12.5px; line-height:1.55; color:var(--ink); margin:14px 0; }
+  .warnBox b{ color:var(--gold); }
+  .dangerBox{ background:rgba(220,38,38,0.06); border:1px solid rgba(220,38,38,0.3); border-radius:10px; padding:11px 13px; font-size:12.5px; line-height:1.55; margin:14px 0; }
+  .dangerBox b{ color:var(--danger); }
+
+  /* toast */
+  .toast{
+    position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(20px);
+    background:var(--ink); color:#fff; font-size:13px; padding:11px 18px; border-radius:100px;
+    box-shadow:0 12px 30px -12px rgba(0,0,0,0.5); z-index:60; opacity:0; pointer-events:none;
+    transition:opacity .2s, transform .2s; display:flex; align-items:center; gap:10px; max-width:90vw;
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+  .toast button{ background:transparent; border:1px solid rgba(255,255,255,0.4); color:#fff; border-radius:100px; padding:4px 12px; font-size:12px; }
+  .toast button:hover{ border-color:#fff; }
+
+  /* mobile view switcher */
+  .viewTabs{ display:none; }
+  @media (max-width:900px){
+    aside.preview{ width:320px; }
+  }
+  @media (max-width:760px){
+    .layout{ position:relative; }
+    aside.cards, main.editor, aside.preview{
+      position:absolute; inset:0; width:100%; border:none;
+      display:none;
+    }
+    aside.cards.mshow, main.editor.mshow, aside.preview.mshow{ display:flex; }
+    main.editor.mshow{ display:flex; }
+    .viewTabs{
+      display:flex; flex-shrink:0; border-top:1px solid var(--line); background:#fff;
+      padding-bottom:env(safe-area-inset-bottom);
+    }
+    .viewTabs button{
+      flex:1; background:transparent; border:none; padding:12px 8px 11px; color:var(--ink-dim);
+      font-size:11px; font-family:'IBM Plex Mono',monospace; display:flex; flex-direction:column; align-items:center; gap:4px;
+      border-top:2px solid transparent;
+    }
+    .viewTabs button.active{ color:var(--eosin); border-top-color:var(--eosin); }
+    .viewTabs button svg{ width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; }
+    .viewTabs .badge{ font-family:'IBM Plex Mono',monospace; }
+    header.bar .barBtns .hideMobile{ display:none; }
+    .editorInner{ padding:20px 18px 40px; }
+  }
+  @media (max-width:420px){
+    header.bar{ gap:8px; padding-left:14px; padding-right:14px; }
+    header.bar .logo{ font-size:14px; }
+    .btn{ padding:9px 10px; font-size:12px; }
+  }
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+<div class="modalBack" id="modalBack"></div>
+<div class="toast" id="toast"><span id="toastMsg"></span><button id="toastAction" hidden></button></div>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+/* Card Maker — a standalone editor for Shorts Reader decks.
+   Storage philosophy: nothing is lost without deliberate intent.
+   - live autosave of the working draft on every edit (survives refresh/crash)
+   - named projects you save into, each a full snapshot
+   - automatic rolling backups (last 20) taken on save and periodically
+   - deleted cards go to a recoverable trash, not oblivion
+   - deleting a whole project needs a typed confirmation
+   - export to .md / .json file anytime; images embed as data-URLs so a deck
+     is fully self-contained (no dead external links)
+   All state lives in localStorage under the 'card-maker:' namespace and never
+   touches a network. */
+(function(){
+  'use strict';
+  /* ============================================================================
+     STORAGE LAYER — the safety guarantees live here.
+     ========================================================================= */
+  var NS = 'card-maker:';
+  var K = {
+    draft:    NS + 'draft',        // the live working document (autosaved constantly)
+    projects: NS + 'projects',     // { id: {id,name,cards,createdAt,updatedAt} }
+    backups:  NS + 'backups',      // [ {ts, name, projectId, cards} ] rolling, newest first
+    trash:    NS + 'trash',        // [ {ts, card} ] deleted cards, recoverable
+    currentId:NS + 'currentProjectId'
+  };
+  var MAX_BACKUPS = 20;
+  var MAX_TRASH = 60;
+  var IMG_WARN_BYTES = 700 * 1024;   // warn if a single embedded image exceeds ~700KB
+
+  function readJSON(key, fallback){
+    try { var raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; }
+    catch(e){ return fallback; }
+  }
+  // Write with a quota-safe guard. Returns true on success; on failure it does
+  // NOT throw (so an edit is never lost mid-keystroke) — the caller is told and
+  // can prompt the user to export. This is central to "no silent data loss".
+  function writeJSON(key, value){
+    try { localStorage.setItem(key, JSON.stringify(value)); return true; }
+    catch(e){ return false; }
+  }
+  function uid(){ return 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+  function now(){ return Date.now(); }
+
+  /* ============================================================================
+     FORMATTER — a verbatim copy of the reader's inline()/formatBody() so the
+     live preview is byte-for-byte what the reader will show. Kept in sync by
+     the build; the test harness checks they match.
+     ========================================================================= */
+  function escapeHtml(s){
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+  function safeUrl(url){
+    var u = String(url).trim();
+    var probe = u.replace(/[\u0000-\u0020]+/g,'').toLowerCase();
+    if (/^data:image\/(png|jpe?g|gif|webp|avif|bmp|svg\+xml)[;,]/i.test(probe)) return u;
+    if (/^(javascript|data|vbscript|file):/i.test(probe)) return '#';
+    return u;
+  }
+  function inline(s){
+    var codeStash = [];
+    var out = escapeHtml(s);
+    out = out.replace(/`([^`]+)`/g, function(m, code){ codeStash.push(code); return '\u0000C' + (codeStash.length - 1) + '\u0000'; });
+    out = out.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, function(m, text, url){
+      return '<a href="' + escapeHtml(safeUrl(url)) + '" target="_blank" rel="noopener noreferrer">' + text + '</a>';
+    });
+    out = out.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+    out = out.replace(/==(.+?)==/g, '<mark class="hl">$1</mark>');
+    out = out.replace(/__(.+?)__/g, '<u>$1</u>');
+    out = out.replace(/\*(.+?)\*/g, '<i>$1</i>');
+    out = out.replace(/(?:^|[^\w])_(.+?)_(?![\w])/g, function(m,g1){ return m.replace('_'+g1+'_','<i>'+g1+'</i>'); });
+    out = out.replace(/\u0000C(\d+)\u0000/g, function(m, i){ return '<code>' + codeStash[parseInt(i,10)] + '</code>'; });
+    return out;
+  }
+  function splitTableRow(line){
+    var t = line.trim();
+    if (t.startsWith('|')) t = t.slice(1);
+    if (t.endsWith('|')) t = t.slice(0, -1);
+    return t.split('|').map(function(c){ return c.trim(); });
+  }
+  function formatBody(raw){
+    var blocks = [];
+    var stash = function(html){ blocks.push(html); return '\u0000B' + (blocks.length-1) + '\u0000'; };
+    var text = raw.replace(/```(\w+)?[ \t]*\n([\s\S]*?)```/g, function(m, lang, content){
+      lang = (lang || '').toLowerCase().trim();
+      var body = content.replace(/\n$/, '');
+      if (lang === 'mermaid') return stash('<div class="mermaid-wrap"><pre class="mermaid">' + escapeHtml(body) + '</pre></div>');
+      if (lang === 'html') return stash(body);
+      return stash('<pre><code>' + escapeHtml(body) + '</code></pre>');
+    });
+    text = text.replace(/\{\{\s*fig\s*:\s*(.+?)\s*\}\}/gi, function(m, label){
+      return stash('<span class="fig-ref">\uD83D\uDCD6 See ' + escapeHtml(label) + ' in the textbook</span>');
+    });
+    text = text.replace(/!\[([^\]]*)\]\((\S+?)\)/g, function(m, alt, url){
+      var cleanUrl = safeUrl(url.trim());
+      if (cleanUrl === '#') return '';
+      var safeSrc = escapeHtml(cleanUrl);
+      var safeAlt = escapeHtml(alt.trim());
+      var cap = alt.trim() ? '<figcaption>' + safeAlt + '</figcaption>' : '';
+      return stash('<figure class="card-figure"><img src="' + safeSrc + '" alt="' + safeAlt + '" loading="lazy" onerror="this.closest(\'figure\').style.display=\'none\'">' + cap + '</figure>');
+    });
+    var lines = text.split('\n');
+    var kept = [];
+    for (var i=0; i<lines.length; i++){
+      var isRow = /^\s*\|.*\|\s*$/.test(lines[i]);
+      var nextSep = lines[i+1] && /^\s*\|?[\s:\-|]+\|?\s*$/.test(lines[i+1]) && lines[i+1].includes('-');
+      if (isRow && nextSep){
+        var header = splitTableRow(lines[i]);
+        var j = i + 2; var rows = [];
+        while (j < lines.length && /^\s*\|.*\|\s*$/.test(lines[j])){ rows.push(splitTableRow(lines[j])); j++; }
+        var html = '<table class="short-table"><thead><tr>' +
+          header.map(function(h){ return '<th>' + inline(h) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+          rows.map(function(r){ return '<tr>' + r.map(function(c){ return '<td>' + inline(c) + '</td>'; }).join('') + '</tr>'; }).join('') +
+          '</tbody></table>';
+        kept.push(stash(html)); i = j - 1; continue;
+      }
+      kept.push(lines[i]);
+    }
+    text = kept.join('\n');
+    var chunks = text.split(/\n{2,}/);
+    var htmlOut = chunks.map(function(chunk){
+      var c = chunk.trim();
+      if (!c) return '';
+      if (/^\u0000B\d+\u0000$/.test(c)) return c;
+      if (/^\s*([-*_])(?:\s*\1){2,}\s*$/.test(c)) return '<hr class="card-hr">';
+      var ls = c.split('\n').filter(function(l){ return l.trim().length; });
+      if (ls.length === 1){
+        var hm = ls[0].match(/^\s*(#{2,4})\s+(.+)$/);
+        if (hm){ var lvl = Math.min(6, hm[1].length + 1); return '<h'+lvl+' class="card-subhead">' + inline(hm[2].trim()) + '</h'+lvl+'>'; }
+      }
+      if (ls.length && ls.every(function(l){ return /^\s*[-*]\s+/.test(l); }))
+        return '<ul>' + ls.map(function(l){ return '<li>' + inline(l.replace(/^\s*[-*]\s+/, '')) + '</li>'; }).join('') + '</ul>';
+      if (ls.length && ls.every(function(l){ return /^\s*\d+[.)]\s+/.test(l); }))
+        return '<ol>' + ls.map(function(l){ return '<li>' + inline(l.replace(/^\s*\d+[.)]\s+/, '')) + '</li>'; }).join('') + '</ol>';
+      if (ls.length && ls.every(function(l){ return /^\s*>\s?/.test(l); }))
+        return '<blockquote>' + ls.map(function(l){ return inline(l.replace(/^\s*>\s?/, '')); }).join('<br>') + '</blockquote>';
+      return '<p>' + ls.map(inline).join('<br>') + '</p>';
+    }).join('');
+    return htmlOut.replace(/\u0000B(\d+)\u0000/g, function(m, idx){ return blocks[parseInt(idx,10)]; });
+  }
+
+  /* ============================================================================
+     DECK <-> TEXT serialization (round-trips through the reader's own formats).
+     ========================================================================= */
+  function deckToMarkdown(name, cards){
+    var out = '# ' + (name || 'Untitled Deck') + '\n';
+    cards.forEach(function(card, i){
+      out += '\n---\n\n## SLIDE ' + (i+1) + ': ' + (card.title || 'Untitled') + '\n';
+      if (card.tag) out += '<!-- tag: ' + card.tag + ' -->\n';
+      out += '\n' + (card.body || '') + '\n';
+    });
+    return out;
+  }
+  function deckToJSON(name, cards){
+    return JSON.stringify({
+      title: name || 'Untitled Deck',
+      cards: cards.map(function(c, i){
+        var o = { title: c.title || ('Card ' + (i+1)), content: c.body || '' };
+        if (c.tag) o.tag = c.tag;
+        return o;
+      })
+    }, null, 2);
+  }
+  // Import: accept the reader's markdown or JSON and return {name, cards}
+  function parseImport(raw){
+    var trimmed = raw.trim();
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')){
+      try { return parseImportJSON(trimmed); } catch(e){ /* fall through to markdown */ }
+    }
+    return parseImportMarkdown(raw);
+  }
+  function parseImportJSON(raw){
+    var data = JSON.parse(raw);
+    var name = 'Imported Deck'; var items = [];
+    if (Array.isArray(data)) items = data;
+    else if (data && typeof data === 'object'){ name = data.title || data.deck || name; items = data.slides || data.cards || data.items || []; }
+    var cards = items.map(function(it, i){
+      return {
+        id: uid(),
+        title: it.title || it.t || it.heading || it.name || ('Card ' + (i+1)),
+        body: it.content || it.c || it.body || it.text || '',
+        tag: it.tag || it.section || it.s || ''
+      };
+    }).filter(function(c){ return c.body || c.title; });
+    return { name: name, cards: cards };
+  }
+  function parseImportMarkdown(raw){
+    var name = 'Imported Deck';
+    var h1 = raw.match(/^#\s+(.+)$/m);
+    if (h1) name = h1[1].trim();
+    var blocks = raw.split(/\n\s*-{3,}\s*\n/);
+    var cards = [];
+    blocks.forEach(function(block){
+      var b = block.trim(); if (!b) return;
+      var m = b.match(/^#{1,3}\s*(?:SLIDE\s*(\d+)\s*:\s*)?(.+)$/im);
+      if (!m) return;
+      var title = m[2].trim();
+      var rest = b.slice(m.index + m[0].length).trim();
+      var tag = '';
+      var tagM = rest.match(/^<!--\s*tag:\s*(.+?)\s*-->\s*/i);
+      if (tagM){ tag = tagM[1].trim(); rest = rest.slice(tagM[0].length).trim(); }
+      if (/^#\s+/.test(b) && !/SLIDE/i.test(m[0]) && cards.length === 0 && title === name){ return; } // skip the deck H1
+      if (!rest && !title) return;
+      cards.push({ id: uid(), title: title, body: rest, tag: tag });
+    });
+    return { name: name, cards: cards };
+  }
+
+  /* ============================================================================
+     APP STATE
+     ========================================================================= */
+  var state = {
+    name: 'Untitled Deck',
+    cards: [],            // [{id, title, body, tag}]
+    currentId: null,      // active card id
+    projectId: null,      // saved-project id this draft belongs to (null = unsaved)
+    dirty: false          // unsaved changes since last project save
+  };
+
+  function newCard(){ return { id: uid(), title: '', body: '', tag: '' }; }
+  function currentCard(){ return state.cards.find(function(c){ return c.id === state.currentId; }) || null; }
+
+  /* ---- draft autosave: the crash-proof layer ---- */
+  var draftTimer = null;
+  function scheduleDraftSave(){
+    state.dirty = true;
+    updateSaveState();
+    clearTimeout(draftTimer);
+    draftTimer = setTimeout(saveDraftNow, 400);
+  }
+  function saveDraftNow(){
+    var ok = writeJSON(K.draft, { name: state.name, cards: state.cards, currentId: state.currentId, projectId: state.projectId, savedAt: now() });
+    if (!ok) warnStorageFull();
+  }
+  function loadDraft(){
+    var d = readJSON(K.draft, null);
+    if (d && Array.isArray(d.cards)){
+      state.name = d.name || 'Untitled Deck';
+      state.cards = d.cards.map(function(c){ return { id: c.id || uid(), title: c.title||'', body: c.body||'', tag: c.tag||'' }; });
+      state.currentId = d.currentId || (state.cards[0] && state.cards[0].id) || null;
+      state.projectId = d.projectId || null;
+      return true;
+    }
+    return false;
+  }
+
+  /* ---- projects: the named-save layer ---- */
+  function getProjects(){ return readJSON(K.projects, {}); }
+  function saveProjectFromState(name){
+    var projects = getProjects();
+    var id = state.projectId || uid();
+    var existing = projects[id];
+    projects[id] = {
+      id: id, name: name || state.name,
+      cards: JSON.parse(JSON.stringify(state.cards)),
+      createdAt: existing ? existing.createdAt : now(),
+      updatedAt: now()
+    };
+    var ok = writeJSON(K.projects, projects);
+    if (!ok){ warnStorageFull(); return false; }
+    state.projectId = id; state.name = projects[id].name; state.dirty = false;
+    writeJSON(K.currentId, id);
+    pushBackup('save');   // every explicit save also snapshots a backup
+    saveDraftNow();
+    updateSaveState();
+    return true;
+  }
+  function openProject(id){
+    var projects = getProjects();
+    var p = projects[id];
+    if (!p) return false;
+    state.name = p.name;
+    state.cards = JSON.parse(JSON.stringify(p.cards)).map(function(c){ return { id: c.id||uid(), title:c.title||'', body:c.body||'', tag:c.tag||'' }; });
+    state.projectId = id;
+    state.currentId = state.cards[0] ? state.cards[0].id : null;
+    state.dirty = false;
+    writeJSON(K.currentId, id);
+    saveDraftNow();
+    return true;
+  }
+  function deleteProject(id){
+    var projects = getProjects();
+    if (projects[id]){
+      pushBackup('pre-delete:' + (projects[id].name || id)); // safety snapshot before removal
+      delete projects[id];
+      writeJSON(K.projects, projects);
+    }
+    if (state.projectId === id){ state.projectId = null; state.dirty = true; }
+  }
+
+  /* ---- rolling backups: the time-machine layer ---- */
+  function pushBackup(reason){
+    var backups = readJSON(K.backups, []);
+    backups.unshift({ ts: now(), reason: reason||'auto', name: state.name, projectId: state.projectId, cards: JSON.parse(JSON.stringify(state.cards)) });
+    if (backups.length > MAX_BACKUPS) backups = backups.slice(0, MAX_BACKUPS);
+    writeJSON(K.backups, backups);
+  }
+  function getBackups(){ return readJSON(K.backups, []); }
+  function restoreBackup(ts){
+    var b = getBackups().find(function(x){ return x.ts === ts; });
+    if (!b) return false;
+    pushBackup('pre-restore'); // snapshot current state first, so a restore is itself undoable
+    state.name = b.name || 'Restored Deck';
+    state.cards = JSON.parse(JSON.stringify(b.cards)).map(function(c){ return { id:c.id||uid(), title:c.title||'', body:c.body||'', tag:c.tag||'' }; });
+    state.currentId = state.cards[0] ? state.cards[0].id : null;
+    state.dirty = true;
+    saveDraftNow();
+    return true;
+  }
+
+  /* ---- card trash: the recoverable-delete layer ---- */
+  function trashCard(card){
+    var trash = readJSON(K.trash, []);
+    trash.unshift({ ts: now(), deckName: state.name, card: JSON.parse(JSON.stringify(card)) });
+    if (trash.length > MAX_TRASH) trash = trash.slice(0, MAX_TRASH);
+    writeJSON(K.trash, trash);
+  }
+  function getTrash(){ return readJSON(K.trash, []); }
+  function restoreTrash(ts){
+    var trash = getTrash();
+    var entry = trash.find(function(x){ return x.ts === ts; });
+    if (!entry) return null;
+    writeJSON(K.trash, trash.filter(function(x){ return x.ts !== ts; }));
+    return entry.card;
+  }
+  function emptyTrash(){ writeJSON(K.trash, []); }
+
+  /* periodic safety backup while actively editing (once every 3 min if dirty) */
+  setInterval(function(){ if (state.dirty && state.cards.length) pushBackup('periodic'); }, 180000);
+
+  /* ============================================================================
+     UI RENDERING
+     ========================================================================= */
+  var app = document.getElementById('app');
+  var modalBack = document.getElementById('modalBack');
+  var toastEl = document.getElementById('toast');
+  var toastMsg = document.getElementById('toastMsg');
+  var toastAction = document.getElementById('toastAction');
+  var mobileView = 'editor'; // cards | editor | preview
+  var mermaidReady = false;
+
+  if (window.mermaid){
+    try { mermaid.initialize({ startOnLoad:false, theme:'base', securityLevel:'loose',
+      themeVariables:{ background:'#ffffff', primaryColor:'#eef4ff', primaryTextColor:'#0a0a0a',
+        primaryBorderColor:'#2563eb', lineColor:'#2563eb', secondaryColor:'#fff1e8', tertiaryColor:'#f4f5f7', fontFamily:'Inter, sans-serif' } });
+      mermaidReady = true;
+    } catch(e){ mermaidReady = false; }
+  }
+
+  function svg(paths){ return '<svg viewBox="0 0 24 24">' + paths + '</svg>'; }
+  var ICON = {
+    plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+    save: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>',
+    folder: '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>',
+    download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
+    clock: '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>',
+    trash: '<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/>',
+    layers: '<polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>',
+    eye: '<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/>',
+    grip: '<circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/>',
+    play: '<polygon points="6 4 20 12 6 20 6 4"/>'
+  };
+
+  function renderShell(){
+    app.innerHTML =
+      '<header class="bar">' +
+        '<span class="logo">Card Maker<span class="dot">.</span></span>' +
+        '<input class="deckName" id="deckName" value="' + escapeHtml(state.name) + '" aria-label="Deck name" spellcheck="false">' +
+        '<span class="saveState" id="saveState"><span class="pip"></span><span id="saveLabel">saved</span></span>' +
+        '<div class="barBtns">' +
+          '<button class="btn hideMobile" id="btnProjects">' + svg(ICON.folder) + 'Projects</button>' +
+          '<button class="btn hideMobile" id="btnHistory" title="Backups & trash">' + svg(ICON.clock) + '</button>' +
+          '<button class="btn" id="btnExport">' + svg(ICON.download) + '<span class="hideMobile">Export</span></button>' +
+          '<button class="btn primary" id="btnSave">' + svg(ICON.save) + 'Save</button>' +
+        '</div>' +
+      '</header>' +
+      '<div class="layout">' +
+        '<aside class="cards' + (mobileView==='cards'?' mshow':'') + '" id="cardsPane">' +
+          '<div class="cardsHead"><span>Cards</span>' +
+            '<button class="addBtn" id="btnAddCard">' + svg(ICON.plus) + 'New card</button></div>' +
+          '<div class="cardList" id="cardList"></div>' +
+        '</aside>' +
+        '<main class="editor' + (mobileView==='editor'?' mshow':'') + '" id="editorPane"></main>' +
+        '<aside class="preview' + (mobileView==='preview'?' mshow':'') + '" id="previewPane">' +
+          '<div class="previewHead"><span>Live preview</span>' +
+            '<button class="btn ghost" id="btnOpenReader" style="padding:5px 10px;min-height:0;font-size:11px" title="Open this deck in the reader">' + svg(ICON.play) + 'Open in reader</button></div>' +
+          '<div class="previewStage" id="previewStage"></div>' +
+        '</aside>' +
+      '</div>' +
+      '<div class="viewTabs" id="viewTabs">' +
+        '<button data-view="cards"' + (mobileView==='cards'?' class="active"':'') + '>' + svg(ICON.layers) + '<span class="badge" id="tabCount">0</span></button>' +
+        '<button data-view="editor"' + (mobileView==='editor'?' class="active"':'') + '>' + svg(ICON.save) + 'Edit</button>' +
+        '<button data-view="preview"' + (mobileView==='preview'?' class="active"':'') + '>' + svg(ICON.eye) + 'Preview</button>' +
+      '</div>';
+    wireShell();
+    renderCardList();
+    renderEditor();
+    renderPreview();
+    updateSaveState();
+  }
+
+  function renderCardList(){
+    var list = document.getElementById('cardList');
+    var tabCount = document.getElementById('tabCount');
+    if (tabCount) tabCount.textContent = state.cards.length;
+    if (!list) return;
+    if (!state.cards.length){
+      list.innerHTML = '<div class="cardsEmpty">No cards yet.<br>Hit <b>New card</b> to start, or Import an existing deck from Projects.</div>';
+      return;
+    }
+    list.innerHTML = state.cards.map(function(c, i){
+      var title = c.title.trim();
+      return '<div class="cardItem' + (c.id===state.currentId?' active':'') + '" data-id="' + c.id + '" draggable="true">' +
+        '<span class="num">' + String(i+1).padStart(2,'0') + '</span>' +
+        '<span class="ci-body">' +
+          '<span class="ci-title' + (title?'':' empty') + '">' + escapeHtml(title || 'Untitled card') + '</span>' +
+          (c.tag ? '<span class="ci-tag">' + escapeHtml(c.tag) + '</span>' : '') +
+        '</span>' +
+        '<span class="ci-drag" aria-hidden="true">' + svg(ICON.grip) + '</span>' +
+      '</div>';
+    }).join('');
+  }
+
+  function renderEditor(){
+    var pane = document.getElementById('editorPane');
+    if (!pane) return;
+    var card = currentCard();
+    if (!card){
+      pane.innerHTML = '<div class="editorEmpty">' + svg(ICON.layers).replace('<svg','<svg width="40" height="40" style="opacity:.3;stroke:currentColor;fill:none;stroke-width:1.5"') +
+        '<h2>Pick a card, or make one</h2><p>Each card is one idea on one screen. Select a card on the left to edit it, or create your first card.</p>' +
+        '<button class="btn primary" id="emptyAddCard">' + svg(ICON.plus) + 'New card</button></div>';
+      var b = document.getElementById('emptyAddCard'); if (b) b.addEventListener('click', addCard);
+      return;
+    }
+    var pos = state.cards.indexOf(card) + 1;
+    pane.innerHTML = '<div class="editorInner">' +
+      '<label class="fieldLabel">Card ' + pos + ' of ' + state.cards.length + ' \u00b7 Title</label>' +
+      '<input class="titleInput" id="fTitle" value="' + escapeHtml(card.title) + '" placeholder="What is this card about?" spellcheck="true">' +
+      '<label class="fieldLabel">Section tag (optional)</label>' +
+      '<input class="tagInput" id="fTag" value="' + escapeHtml(card.tag) + '" placeholder="e.g. Metastasis \u2014 shows as a small pill on the card">' +
+      '<label class="fieldLabel">Body</label>' +
+      buildToolbar() +
+      '<textarea class="bodyInput" id="fBody" placeholder="Write the card body. Markdown works: **bold**, *italic*, ==highlight==, lists, tables, > quotes, `code`, links, images." spellcheck="true">' + escapeHtml(card.body) + '</textarea>' +
+      '<div class="charCount" id="charCount"></div>' +
+      '<div class="editorActions">' +
+        '<button class="btn" id="btnDupCard">Duplicate</button>' +
+        '<button class="btn" id="btnAddAfter">' + svg(ICON.plus) + 'Add card after</button>' +
+        '<button class="btn danger" id="btnDelCard">' + svg(ICON.trash) + 'Delete card</button>' +
+      '</div>' +
+    '</div>';
+    wireEditorFields();
+    updateCharCount();
+  }
+
+  function buildToolbar(){
+    var b = function(id, label, title){ return '<button class="tbBtn" data-md="' + id + '" title="' + title + '" type="button">' + label + '</button>'; };
+    return '<div class="toolbar" id="toolbar">' +
+      b('bold', '<b>B</b>', 'Bold') +
+      b('italic', '<i>I</i>', 'Italic') +
+      b('underline', '<span class="mono">U</span>', 'Underline') +
+      b('highlight', '<span class="mono">==</span>', 'Highlight') +
+      b('code', '<span class="mono">&lt;/&gt;</span>', 'Inline code') +
+      '<span class="tbSep"></span>' +
+      b('h', '<span class="mono">H</span>', 'Sub-heading') +
+      b('ul', '<span class="mono">\u2022</span>', 'Bullet list') +
+      b('ol', '<span class="mono">1.</span>', 'Numbered list') +
+      b('quote', '<span class="mono">\u201d</span>', 'Blockquote') +
+      b('table', '<span class="mono">\u25A6</span>', 'Table') +
+      '<span class="tbSep"></span>' +
+      b('link', svg(ICON.plus).replace(ICON.plus,'<path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/>'), 'Insert link') +
+      '<button class="tbBtn" data-img="1" title="Insert image (embeds into the deck)" type="button">' + svg('<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>') + '</button>' +
+      b('fig', '<span class="mono">\uD83D\uDCD6</span>', 'Figure reference') +
+      b('mermaid', '<span class="mono">\u2325</span>', 'Diagram (Mermaid)') +
+    '</div>';
+  }
+
+  function renderPreview(){
+    var stage = document.getElementById('previewStage');
+    if (!stage) return;
+    var card = currentCard();
+    if (!card){ stage.innerHTML = '<div style="color:var(--ink-dim);font-size:13px;text-align:center;padding:40px 10px">Select a card to preview it.</div>'; return; }
+    var pos = state.cards.indexOf(card) + 1;
+    stage.innerHTML = '<div class="pvPanel">' +
+      '<div class="pvEyebrow">' + (card.tag ? '<span class="pvTag">' + escapeHtml(card.tag) + '</span>' : '') +
+        '<span class="pvIdx">' + String(pos).padStart(2,'0') + '</span></div>' +
+      '<h2 class="pvTitle">' + escapeHtml(card.title || 'Untitled card') + '</h2>' +
+      '<div class="pvBody">' + formatBody(card.body || '') + '</div>' +
+    '</div>';
+    var nodes = stage.querySelectorAll('.mermaid');
+    if (nodes.length && window.mermaid && mermaidReady){
+      try { mermaid.run({ nodes: nodes }); } catch(e){ /* leave as code block */ }
+    }
+  }
+
+  var previewTimer = null;
+  function schedulePreview(){ clearTimeout(previewTimer); previewTimer = setTimeout(renderPreview, 180); }
+
+  function updateCharCount(){
+    var el = document.getElementById('charCount'); var card = currentCard();
+    if (!el || !card) return;
+    var words = (card.body.trim().match(/\S+/g) || []).length;
+    var over = words > 90;
+    el.innerHTML = '<span class="' + (over?'warn':'') + '">' + words + ' words</span>' + (over ? ' \u00b7 over the ~90-word soft target' : '');
+  }
+
+  function updateSaveState(){
+    var el = document.getElementById('saveState'); var label = document.getElementById('saveLabel');
+    if (!el) return;
+    el.classList.remove('saved','dirty');
+    if (state.dirty){ el.classList.add('dirty'); if (label) label.textContent = state.projectId ? 'unsaved changes' : 'draft (unsaved project)'; }
+    else { el.classList.add('saved'); if (label) label.textContent = state.projectId ? 'saved' : 'draft saved'; }
+  }
+
+  /* ============================================================================
+     CARD OPERATIONS
+     ========================================================================= */
+  function addCard(){ insertCardAt(state.cards.length); }
+  function insertCardAt(index){
+    var c = newCard();
+    state.cards.splice(index, 0, c);
+    state.currentId = c.id;
+    scheduleDraftSave();
+    renderCardList(); renderEditor(); renderPreview();
+    var t = document.getElementById('fTitle'); if (t) t.focus();
+  }
+  function addCardAfterCurrent(){
+    var idx = state.cards.findIndex(function(c){ return c.id === state.currentId; });
+    insertCardAt(idx < 0 ? state.cards.length : idx + 1);
+  }
+  function duplicateCurrent(){
+    var card = currentCard(); if (!card) return;
+    var idx = state.cards.indexOf(card);
+    var copy = { id: uid(), title: card.title, body: card.body, tag: card.tag };
+    state.cards.splice(idx + 1, 0, copy);
+    state.currentId = copy.id;
+    scheduleDraftSave();
+    renderCardList(); renderEditor(); renderPreview();
+  }
+  function deleteCurrent(){
+    var card = currentCard(); if (!card) return;
+    var idx = state.cards.indexOf(card);
+    trashCard(card);              // recoverable — not gone
+    state.cards.splice(idx, 1);
+    state.currentId = state.cards[Math.max(0, idx-1)] ? state.cards[Math.max(0, idx-1)].id : (state.cards[0] ? state.cards[0].id : null);
+    scheduleDraftSave();
+    renderCardList(); renderEditor(); renderPreview();
+    showToast('Card deleted', 'Undo', function(){
+      var restored = restoreTrashLatest();
+      if (restored){ state.cards.splice(Math.min(idx, state.cards.length), 0, restored); state.currentId = restored.id;
+        scheduleDraftSave(); renderCardList(); renderEditor(); renderPreview(); }
+    });
+  }
+  function restoreTrashLatest(){
+    var trash = getTrash();
+    if (!trash.length) return null;
+    var entry = trash[0];
+    writeJSON(K.trash, trash.slice(1));
+    return entry.card;
+  }
+  function selectCard(id){
+    if (id === state.currentId) return;
+    saveActiveFields();          // flush the field being edited before switching
+    state.currentId = id;
+    renderCardList(); renderEditor(); renderPreview();
+    if (window.innerWidth <= 760){ mobileView = 'editor'; renderShell(); }
+  }
+
+  /* flush the live inputs into state (used before reorder/switch/save) */
+  function saveActiveFields(){
+    var card = currentCard(); if (!card) return;
+    var tE = document.getElementById('fTitle'), gE = document.getElementById('fTag'), bE = document.getElementById('fBody');
+    if (tE) card.title = tE.value;
+    if (gE) card.tag = gE.value;
+    if (bE) card.body = bE.value;
+  }
+
+  /* ============================================================================
+     TOOLBAR / MARKDOWN INSERTION
+     ========================================================================= */
+  function wrapSelection(before, after, placeholder){
+    var ta = document.getElementById('fBody'); if (!ta) return;
+    var s = ta.selectionStart, e = ta.selectionEnd;
+    var sel = ta.value.slice(s, e) || placeholder || '';
+    var next = ta.value.slice(0, s) + before + sel + after + ta.value.slice(e);
+    ta.value = next;
+    ta.focus();
+    ta.selectionStart = s + before.length;
+    ta.selectionEnd = s + before.length + sel.length;
+    onBodyInput();
+  }
+  function insertBlock(text){
+    var ta = document.getElementById('fBody'); if (!ta) return;
+    var s = ta.selectionStart;
+    var pre = ta.value.slice(0, s);
+    var needsNL = pre.length && !pre.endsWith('\n\n');
+    var lead = pre.length ? (pre.endsWith('\n') ? '\n' : '\n\n') : '';
+    var insert = lead + text + '\n';
+    ta.value = pre + insert + ta.value.slice(s);
+    ta.focus();
+    var caret = (pre + insert).length;
+    ta.selectionStart = ta.selectionEnd = caret;
+    onBodyInput();
+  }
+  function applyMd(kind){
+    switch(kind){
+      case 'bold': return wrapSelection('**','**','bold text');
+      case 'italic': return wrapSelection('*','*','italic text');
+      case 'underline': return wrapSelection('__','__','underline');
+      case 'highlight': return wrapSelection('==','==','highlight');
+      case 'code': return wrapSelection('`','`','code');
+      case 'link': return wrapSelection('[','](https://)','link text');
+      case 'h': return insertBlock('### Sub-heading');
+      case 'ul': return insertBlock('- item one\n- item two\n- item three');
+      case 'ol': return insertBlock('1. first\n2. second\n3. third');
+      case 'quote': return insertBlock('> quoted line');
+      case 'table': return insertBlock('| Column A | Column B |\n|---|---|\n| value | value |\n| value | value |');
+      case 'fig': return insertBlock('{{fig: Fig 1.1}}');
+      case 'mermaid': return insertBlock('```mermaid\nflowchart TD\n  A[Start] --> B[Next]\n  B --> C[End]\n```');
+    }
+  }
+
+  /* ============================================================================
+     IMAGE EMBEDDING — reads a file, compresses if large, embeds as a data-URL
+     so the deck stays self-contained. Never uploads anywhere.
+     ========================================================================= */
+  function pickImage(){
+    var input = document.createElement('input');
+    input.type = 'file'; input.accept = 'image/png,image/jpeg,image/gif,image/webp';
+    input.addEventListener('change', function(){ if (input.files[0]) embedImageFile(input.files[0]); });
+    input.click();
+  }
+  function embedImageFile(file){
+    if (!/^image\//.test(file.type)){ showToast('That is not an image file.'); return; }
+    var reader = new FileReader();
+    reader.onload = function(){
+      var dataUrl = reader.result;
+      // If large, downscale via canvas to keep localStorage happy and decks portable.
+      maybeDownscale(dataUrl, file.type, function(finalUrl){
+        var approxBytes = Math.ceil(finalUrl.length * 0.75);
+        if (approxBytes > IMG_WARN_BYTES){
+          openConfirm('Large image', 'This image is about ' + Math.round(approxBytes/1024) + ' KB even after downscaling. Embedding very large images can fill browser storage and slow the deck. Embed it anyway?', 'Embed anyway', function(){ doInsertImage(finalUrl); });
+        } else { doInsertImage(finalUrl); }
+      });
+    };
+    reader.onerror = function(){ showToast('Could not read that image.'); };
+    reader.readAsDataURL(file);
+  }
+  function maybeDownscale(dataUrl, type, cb){
+    var approxBytes = Math.ceil(dataUrl.length * 0.75);
+    if (approxBytes <= IMG_WARN_BYTES){ cb(dataUrl); return; } // small enough, keep original quality
+    var img = new Image();
+    img.onload = function(){
+      var maxW = 1280;
+      var scale = Math.min(1, maxW / img.naturalWidth);
+      var w = Math.round(img.naturalWidth * scale), h = Math.round(img.naturalHeight * scale);
+      try {
+        var canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
+        var ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, w, h);
+        var outType = (type === 'image/png') ? 'image/png' : 'image/jpeg';
+        var out = canvas.toDataURL(outType, 0.82);
+        cb(out.length < dataUrl.length ? out : dataUrl);
+      } catch(e){ cb(dataUrl); }
+    };
+    img.onerror = function(){ cb(dataUrl); };
+    img.src = dataUrl;
+  }
+  function doInsertImage(dataUrl){
+    insertBlock('![caption](' + dataUrl + ')');
+    showToast('Image embedded into the card.');
+  }
+
+  /* also allow pasting an image straight into the body textarea */
+  function handleBodyPaste(e){
+    var items = (e.clipboardData && e.clipboardData.items) || [];
+    for (var i=0;i<items.length;i++){
+      if (items[i].type && items[i].type.indexOf('image') === 0){
+        var file = items[i].getAsFile();
+        if (file){ e.preventDefault(); embedImageFile(file); return; }
+      }
+    }
+  }
+
+  /* ============================================================================
+     EVENT WIRING
+     ========================================================================= */
+  function wireShell(){
+    var dn = document.getElementById('deckName');
+    dn.addEventListener('input', function(){ state.name = dn.value; scheduleDraftSave(); });
+    dn.addEventListener('blur', function(){ if (!state.name.trim()){ state.name = 'Untitled Deck'; dn.value = state.name; scheduleDraftSave(); } });
+
+    document.getElementById('btnAddCard').addEventListener('click', addCard);
+    document.getElementById('btnSave').addEventListener('click', openSaveDialog);
+    document.getElementById('btnExport').addEventListener('click', openExportDialog);
+    document.getElementById('btnOpenReader').addEventListener('click', openInReader);
+    var bp = document.getElementById('btnProjects'); if (bp) bp.addEventListener('click', openProjectsDialog);
+    var bh = document.getElementById('btnHistory'); if (bh) bh.addEventListener('click', openHistoryDialog);
+
+    // card list: select, drag-reorder
+    var list = document.getElementById('cardList');
+    list.addEventListener('click', function(e){
+      var item = e.target.closest('.cardItem'); if (item) selectCard(item.dataset.id);
+    });
+    wireDragReorder(list);
+
+    // mobile tabs
+    var tabs = document.getElementById('viewTabs');
+    tabs.addEventListener('click', function(e){
+      var btn = e.target.closest('button[data-view]'); if (!btn) return;
+      saveActiveFields(); mobileView = btn.dataset.view; renderShell();
+    });
+  }
+
+  function wireEditorFields(){
+    var tE = document.getElementById('fTitle'), gE = document.getElementById('fTag'), bE = document.getElementById('fBody');
+    tE.addEventListener('input', function(){ var c = currentCard(); if (c){ c.title = tE.value; scheduleDraftSave(); renderCardListTitle(c.id); schedulePreview(); } });
+    gE.addEventListener('input', function(){ var c = currentCard(); if (c){ c.tag = gE.value; scheduleDraftSave(); renderCardList(); schedulePreview(); } });
+    bE.addEventListener('input', onBodyInput);
+    bE.addEventListener('paste', handleBodyPaste);
+    bE.addEventListener('keydown', function(e){
+      // Ctrl/Cmd+B / I for bold/italic inside the body
+      if ((e.ctrlKey||e.metaKey) && !e.shiftKey && !e.altKey){
+        var k = e.key.toLowerCase();
+        if (k === 'b'){ e.preventDefault(); applyMd('bold'); }
+        else if (k === 'i'){ e.preventDefault(); applyMd('italic'); }
+      }
+      // Tab inserts two spaces rather than leaving the field
+      if (e.key === 'Tab' && !e.shiftKey){ e.preventDefault(); wrapSelection('  ','',''); }
+    });
+
+    var tb = document.getElementById('toolbar');
+    tb.addEventListener('click', function(e){
+      var btn = e.target.closest('button'); if (!btn) return;
+      if (btn.dataset.img){ pickImage(); return; }
+      if (btn.dataset.md){ applyMd(btn.dataset.md); }
+    });
+
+    document.getElementById('btnDupCard').addEventListener('click', duplicateCurrent);
+    document.getElementById('btnAddAfter').addEventListener('click', addCardAfterCurrent);
+    document.getElementById('btnDelCard').addEventListener('click', deleteCurrent);
+  }
+
+  function onBodyInput(){
+    var c = currentCard(); var bE = document.getElementById('fBody');
+    if (c && bE){ c.body = bE.value; scheduleDraftSave(); updateCharCount(); schedulePreview(); }
+  }
+  function renderCardListTitle(id){
+    // lightweight: just update the one list row's title without full rerender
+    var row = document.querySelector('.cardItem[data-id="' + id + '"] .ci-title');
+    var c = state.cards.find(function(x){ return x.id === id; });
+    if (row && c){ var t = c.title.trim(); row.textContent = t || 'Untitled card'; row.classList.toggle('empty', !t); }
+  }
+
+  /* ---- drag to reorder cards ---- */
+  function wireDragReorder(list){
+    var dragId = null;
+    list.addEventListener('dragstart', function(e){
+      var item = e.target.closest('.cardItem'); if (!item) return;
+      dragId = item.dataset.id; item.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    list.addEventListener('dragend', function(){
+      dragId = null;
+      list.querySelectorAll('.cardItem').forEach(function(el){ el.classList.remove('dragging','dragover'); });
+    });
+    list.addEventListener('dragover', function(e){
+      e.preventDefault();
+      var item = e.target.closest('.cardItem');
+      list.querySelectorAll('.cardItem').forEach(function(el){ el.classList.remove('dragover'); });
+      if (item && item.dataset.id !== dragId) item.classList.add('dragover');
+    });
+    list.addEventListener('drop', function(e){
+      e.preventDefault();
+      var item = e.target.closest('.cardItem'); if (!item || !dragId) return;
+      var from = state.cards.findIndex(function(c){ return c.id === dragId; });
+      var to = state.cards.findIndex(function(c){ return c.id === item.dataset.id; });
+      if (from < 0 || to < 0 || from === to) return;
+      var moved = state.cards.splice(from, 1)[0];
+      state.cards.splice(to, 0, moved);
+      scheduleDraftSave();
+      renderCardList(); renderEditor(); renderPreview();
+    });
+  }
+
+  /* ============================================================================
+     MODALS
+     ========================================================================= */
+  function openModal(html){ modalBack.innerHTML = '<div class="modal">' + html + '</div>'; modalBack.classList.add('open'); }
+  function closeModal(){ modalBack.classList.remove('open'); modalBack.innerHTML = ''; }
+  modalBack.addEventListener('click', function(e){ if (e.target === modalBack) closeModal(); });
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && modalBack.classList.contains('open')) closeModal(); });
+
+  function openConfirm(title, body, confirmLabel, onConfirm, danger){
+    openModal('<h2>' + escapeHtml(title) + '</h2><p class="sub">' + body + '</p>' +
+      '<div class="modalActions"><button class="btn" id="cfCancel">Cancel</button>' +
+      '<button class="btn ' + (danger?'danger':'primary') + '" id="cfOk">' + escapeHtml(confirmLabel) + '</button></div>');
+    document.getElementById('cfCancel').addEventListener('click', closeModal);
+    document.getElementById('cfOk').addEventListener('click', function(){ closeModal(); onConfirm(); });
+  }
+
+  function openSaveDialog(){
+    saveActiveFields();
+    if (!state.cards.length){ showToast('Add at least one card before saving.'); return; }
+    var isUpdate = !!state.projectId;
+    openModal('<h2>' + (isUpdate ? 'Save project' : 'Save as new project') + '</h2>' +
+      '<p class="sub">Saves a full named snapshot you can reopen anytime. A rolling backup is taken automatically too.</p>' +
+      '<label class="mlabel">Project name</label>' +
+      '<input class="mInput" id="saveName" value="' + escapeHtml(state.name) + '">' +
+      '<div class="modalActions"><button class="btn" id="svCancel">Cancel</button>' +
+      (isUpdate ? '<button class="btn" id="svNew">Save as new</button>' : '') +
+      '<button class="btn primary" id="svOk">Save</button></div>');
+    var nameEl = document.getElementById('saveName');
+    nameEl.focus(); nameEl.select();
+    document.getElementById('svCancel').addEventListener('click', closeModal);
+    document.getElementById('svOk').addEventListener('click', function(){
+      state.name = nameEl.value.trim() || 'Untitled Deck';
+      if (saveProjectFromState(state.name)){ closeModal(); renderShell(); showToast('Saved \u201c' + state.name + '\u201d'); }
+      else showToast('Could not save \u2014 storage may be full. Export a backup.');
+    });
+    var svNew = document.getElementById('svNew');
+    if (svNew) svNew.addEventListener('click', function(){
+      state.projectId = null; // fork into a brand-new project
+      state.name = nameEl.value.trim() || 'Untitled Deck';
+      if (saveProjectFromState(state.name)){ closeModal(); renderShell(); showToast('Saved as new project'); }
+    });
+  }
+
+  function openProjectsDialog(){
+    saveActiveFields();
+    var projects = getProjects();
+    var entries = Object.values(projects).sort(function(a,b){ return b.updatedAt - a.updatedAt; });
+    var rows = entries.length ? entries.map(function(p){
+      return '<div class="projRow' + (p.id===state.projectId?' current':'') + '" data-open="' + p.id + '">' +
+        '<span class="pr-main"><div class="pr-title">' + escapeHtml(p.name) + '</div>' +
+        '<div class="pr-meta">' + p.cards.length + ' cards \u00b7 updated ' + relTime(p.updatedAt) + '</div></span>' +
+        '<button class="pr-del" data-del="' + p.id + '" title="Delete project" aria-label="Delete project">\u00d7</button></div>';
+    }).join('') : '<div class="projEmpty">No saved projects yet.</div>';
+    openModal('<h2>Projects</h2><p class="sub">Open a saved deck, start fresh, or import an existing Shorts file.</p>' +
+      '<div class="projList">' + rows + '</div>' +
+      '<div class="modalActions" style="justify-content:space-between">' +
+        '<div style="display:flex;gap:8px"><button class="btn" id="pjNew">New deck</button><button class="btn" id="pjImport">Import file</button></div>' +
+        '<button class="btn ghost" id="pjClose">Close</button></div>');
+    document.getElementById('pjClose').addEventListener('click', closeModal);
+    document.getElementById('pjNew').addEventListener('click', function(){
+      openConfirm('Start a new deck?', state.dirty ? 'Your current deck has unsaved changes. They stay in the autosaved draft and any saved project, but the editor will switch to a blank deck.' : 'This clears the editor to a blank deck. Saved projects are untouched.', 'New blank deck', function(){
+        state.name = 'Untitled Deck'; state.cards = [newCard()]; state.currentId = state.cards[0].id; state.projectId = null; state.dirty = true;
+        saveDraftNow(); closeModal(); renderShell();
+      });
+    });
+    document.getElementById('pjImport').addEventListener('click', openImportDialog);
+    modalBack.querySelectorAll('.projRow').forEach(function(row){
+      row.addEventListener('click', function(e){
+        if (e.target.closest('.pr-del')) return;
+        if (openProject(row.dataset.open)){ closeModal(); renderShell(); showToast('Opened project'); }
+      });
+    });
+    modalBack.querySelectorAll('.pr-del').forEach(function(btn){
+      btn.addEventListener('click', function(e){ e.stopPropagation(); confirmDeleteProject(btn.dataset.del, projects[btn.dataset.del]); });
+    });
+  }
+
+  function confirmDeleteProject(id, proj){
+    var name = proj ? proj.name : 'this project';
+    openModal('<h2>Delete project</h2>' +
+      '<div class="dangerBox"><b>This removes the saved project \u201c' + escapeHtml(name) + '\u201d.</b> A safety backup is taken first, so you can still recover it from History for a while. To confirm, type the project name below.</div>' +
+      '<label class="mlabel">Type \u201c' + escapeHtml(name) + '\u201d to confirm</label>' +
+      '<input class="mInput" id="delConfirm" autocomplete="off">' +
+      '<div class="modalActions"><button class="btn" id="delCancel">Cancel</button>' +
+      '<button class="btn danger" id="delOk" disabled>Delete project</button></div>');
+    var inp = document.getElementById('delConfirm'), ok = document.getElementById('delOk');
+    inp.focus();
+    inp.addEventListener('input', function(){ ok.disabled = inp.value.trim() !== name; });
+    document.getElementById('delCancel').addEventListener('click', openProjectsDialog);
+    ok.addEventListener('click', function(){
+      deleteProject(id); closeModal();
+      if (state.projectId === null) renderShell();
+      showToast('Project deleted \u2014 recoverable from History');
+    });
+  }
+
+  function openImportDialog(){
+    openModal('<h2>Import a deck</h2><p class="sub">Paste a Shorts markdown file or JSON array, or choose a .md/.txt/.json file. Cards become editable here.</p>' +
+      '<button class="btn" id="imFile" style="width:100%;justify-content:center;margin-bottom:12px">Choose a file\u2026</button>' +
+      '<label class="mlabel">or paste content</label>' +
+      '<textarea class="mInput" id="imText" placeholder="# Deck Title&#10;&#10;---&#10;&#10;## SLIDE 1: Title&#10;&#10;body\u2026"></textarea>' +
+      '<div class="modalActions"><button class="btn" id="imCancel">Cancel</button>' +
+      '<button class="btn primary" id="imOk">Import</button></div>');
+    document.getElementById('imCancel').addEventListener('click', openProjectsDialog);
+    document.getElementById('imFile').addEventListener('click', function(){
+      var input = document.createElement('input'); input.type='file'; input.accept='.md,.txt,.json,text/markdown,text/plain,application/json';
+      input.addEventListener('change', function(){ var f = input.files[0]; if (!f) return;
+        var r = new FileReader(); r.onload = function(){ document.getElementById('imText').value = r.result; }; r.readAsText(f); });
+      input.click();
+    });
+    document.getElementById('imOk').addEventListener('click', function(){
+      var raw = document.getElementById('imText').value.trim();
+      if (!raw){ showToast('Paste or choose a file first.'); return; }
+      var parsed;
+      try { parsed = parseImport(raw); } catch(e){ showToast('Could not parse that file.'); return; }
+      if (!parsed.cards.length){ showToast('No cards found in that file.'); return; }
+      state.name = parsed.name; state.cards = parsed.cards; state.currentId = parsed.cards[0].id; state.projectId = null; state.dirty = true;
+      saveDraftNow(); closeModal(); renderShell(); showToast('Imported ' + parsed.cards.length + ' cards');
+    });
+  }
+
+  function openHistoryDialog(){
+    var backups = getBackups(), trash = getTrash();
+    var bkRows = backups.length ? backups.map(function(b){
+      return '<div class="backupRow"><span class="bk-when">' + fmtDate(b.ts) + '</span>' +
+        '<span class="bk-meta">' + b.cards.length + ' cards \u00b7 ' + escapeHtml(b.reason) + '</span>' +
+        '<button class="btn" data-restore="' + b.ts + '" style="padding:6px 11px;min-height:0;font-size:12px">Restore</button></div>';
+    }).join('') : '<div class="projEmpty" style="padding:14px 0">No backups yet.</div>';
+    var trRows = trash.length ? trash.map(function(t){
+      return '<div class="trashRow"><span class="tr-main"><div class="tr-title">' + escapeHtml(t.card.title || 'Untitled card') + '</div>' +
+        '<div class="tr-meta">from \u201c' + escapeHtml(t.deckName||'') + '\u201d \u00b7 ' + relTime(t.ts) + '</div></span>' +
+        '<button class="btn" data-untrash="' + t.ts + '" style="padding:6px 11px;min-height:0;font-size:12px">Restore</button></div>';
+    }).join('') : '<div class="projEmpty" style="padding:14px 0">Trash is empty.</div>';
+    openModal('<h2>History</h2><p class="sub">Automatic backups of your whole deck, and cards you have deleted. Everything here is recoverable.</p>' +
+      '<label class="mlabel">Deck backups (last ' + MAX_BACKUPS + ')</label>' + bkRows +
+      '<label class="mlabel" style="margin-top:16px">Deleted cards</label>' + trRows +
+      '<div class="modalActions" style="justify-content:space-between">' +
+        '<button class="btn danger" id="hsEmptyTrash"' + (trash.length?'':' disabled') + '>Empty trash</button>' +
+        '<button class="btn ghost" id="hsClose">Close</button></div>');
+    document.getElementById('hsClose').addEventListener('click', closeModal);
+    document.getElementById('hsEmptyTrash').addEventListener('click', function(){
+      openConfirm('Empty trash?', 'This permanently removes all deleted cards. This cannot be undone.', 'Empty trash', function(){ emptyTrash(); openHistoryDialog(); }, true);
+    });
+    modalBack.querySelectorAll('[data-restore]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        openConfirm('Restore this backup?', 'Your current deck is snapshotted first, so this restore is itself undoable. The editor will load the backed-up deck.', 'Restore', function(){
+          if (restoreBackup(parseInt(btn.dataset.restore,10))){ closeModal(); renderShell(); showToast('Backup restored'); }
+        });
+      });
+    });
+    modalBack.querySelectorAll('[data-untrash]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var card = restoreTrash(parseInt(btn.dataset.untrash,10));
+        if (card){ state.cards.push(card); state.currentId = card.id; scheduleDraftSave(); renderShell(); closeModal(); showToast('Card restored'); }
+      });
+    });
+  }
+
+  function openExportDialog(){
+    saveActiveFields();
+    if (!state.cards.length){ showToast('Nothing to export yet.'); return; }
+    openModal('<h2>Export deck</h2><p class="sub">Download a file you can load straight into the reader, or keep as a backup. Images stay embedded, so the file is self-contained.</p>' +
+      '<div class="warnBox">Exporting regularly is the safest backup of all \u2014 a downloaded file lives outside the browser and can\u2019t be cleared by mistake.</div>' +
+      '<div class="modalActions" style="justify-content:flex-start;flex-wrap:wrap">' +
+        '<button class="btn primary" id="exMd">Download .md</button>' +
+        '<button class="btn" id="exJson">Download .json</button>' +
+        '<button class="btn" id="exCopy">Copy markdown</button>' +
+        '<button class="btn ghost" id="exClose" style="margin-left:auto">Close</button></div>');
+    document.getElementById('exClose').addEventListener('click', closeModal);
+    document.getElementById('exMd').addEventListener('click', function(){ downloadFile(safeName()+'.md', deckToMarkdown(state.name, state.cards), 'text/markdown'); });
+    document.getElementById('exJson').addEventListener('click', function(){ downloadFile(safeName()+'.json', deckToJSON(state.name, state.cards), 'application/json'); });
+    document.getElementById('exCopy').addEventListener('click', function(){
+      copyText(deckToMarkdown(state.name, state.cards)); showToast('Markdown copied');
+    });
+  }
+  function safeName(){ return (state.name || 'deck').replace(/[^\w\- ]+/g,'').trim().replace(/\s+/g,'-') || 'deck'; }
+  function downloadFile(filename, content, type){
+    var blob = new Blob([content], { type: type + ';charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click();
+    document.body.removeChild(a); setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+    showToast('Downloaded ' + filename);
+  }
+  function copyText(text){
+    if (navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(text).catch(function(){}); return; }
+    var ta = document.createElement('textarea'); ta.value = text; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch(e){} document.body.removeChild(ta);
+  }
+
+  /* Open the current deck in the reader by handing it off via localStorage so
+     the reader loads it without a re-paste. Falls back to copying if blocked. */
+  function openInReader(){
+    saveActiveFields();
+    if (!state.cards.length){ showToast('Add a card first.'); return; }
+    try {
+      var lib = readJSON('shorts-reader:library', {});
+      lib[state.name] = { title: state.name,
+        cards: state.cards.map(function(c,i){ return { idx:i+1, title:c.title||('Card '+(i+1)), body:c.body||'', tag:c.tag||null }; }),
+        pos: (lib[state.name] && lib[state.name].pos) || 1,
+        addedAt: (lib[state.name] && lib[state.name].addedAt) || now(), updatedAt: now() };
+      writeJSON('shorts-reader:library', lib);
+      writeJSON('shorts-reader:last-opened', state.name);
+      window.open('index.html', '_blank');
+    } catch(e){ showToast('Could not hand off \u2014 export the deck and load it manually.'); }
+  }
+
+  /* ============================================================================
+     HELPERS + TOAST
+     ========================================================================= */
+  function relTime(ts){
+    var d = now() - ts, m = Math.floor(d/60000);
+    if (m < 1) return 'just now'; if (m < 60) return m + 'm ago';
+    var h = Math.floor(m/60); if (h < 24) return h + 'h ago';
+    var days = Math.floor(h/24); if (days < 30) return days + 'd ago';
+    return new Date(ts).toLocaleDateString();
+  }
+  function fmtDate(ts){ var dt = new Date(ts); return dt.toLocaleDateString() + ' ' + dt.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}); }
+
+  var toastTimer = null;
+  function showToast(msg, actionLabel, onAction){
+    toastMsg.textContent = msg;
+    if (actionLabel && onAction){ toastAction.hidden = false; toastAction.textContent = actionLabel;
+      toastAction.onclick = function(){ onAction(); hideToast(); };
+    } else { toastAction.hidden = true; toastAction.onclick = null; }
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(hideToast, actionLabel ? 6000 : 2600);
+  }
+  function hideToast(){ toastEl.classList.remove('show'); }
+
+  function warnStorageFull(){
+    showToast('Storage is full \u2014 export your deck now to be safe.', 'Export', openExportDialog);
+  }
+
+  /* warn before leaving with unsaved changes (draft still autosaves regardless) */
+  window.addEventListener('beforeunload', function(e){
+    saveActiveFields(); saveDraftNow();
+    if (state.dirty){ e.preventDefault(); e.returnValue = ''; }
+  });
+
+  /* ============================================================================
+     INIT
+     ========================================================================= */
+  (function init(){
+    var hadDraft = loadDraft();
+    if (!hadDraft || !state.cards.length){
+      // first run — start with one empty card so the editor isn't a dead end
+      state.cards = [newCard()]; state.currentId = state.cards[0].id; state.name = 'Untitled Deck';
+      state.dirty = false;
+      saveDraftNow();
+    }
+    if (!state.currentId && state.cards[0]) state.currentId = state.cards[0].id;
+    renderShell();
+  })();
+
+})();
+</script>
+</body>
+</html>

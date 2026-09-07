@@ -1,0 +1,1815 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Shorts Reader</title>
+
+<link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="48x48" href="icons/favicon-48x48.png">
+<link rel="shortcut icon" href="icons/favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#ffffff">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Shorts">
+<meta property="og:title" content="Shorts Reader">
+<meta property="og:description" content="One idea per screen — a vertical scroll reader for study decks.">
+<meta property="og:image" content="icons/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#ffffff; --card:#ffffff; --line: rgba(0,0,0,0.14);
+    --ink:#0a0a0a; --ink-dim:#5b6472;
+    --hema:#2563eb; --eosin:#ea580c; --eosin-dim: rgba(234,88,12,0.45); --gold:#c2410c;
+    --soft-blue:#eef4ff; --soft-orange:#fff1e8;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html{ touch-action:pan-y; -ms-touch-action:pan-y; }
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+    font-family:'Inter',system-ui,sans-serif; height:100%; width:100%;
+    overflow-x:hidden; overscroll-behavior-y:none;
+    touch-action:pan-y; -ms-touch-action:pan-y;
+    -webkit-text-size-adjust:100%; text-size-adjust:100%;}
+  ::selection{background:var(--hema); color:#fff;}
+
+  /* ---------- upload screen ---------- */
+  #uploadScreen{
+    min-height:100vh; min-height:100dvh; display:flex; align-items:center; justify-content:center;
+    padding:calc(24px + env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) calc(20px + env(safe-area-inset-left));
+    position:relative; z-index:1; width:100%;
+  }
+  .uploadCard{
+    width:100%; max-width:560px; background:var(--card);
+    border:1px solid var(--line); border-radius:24px; padding:38px 34px;
+    box-shadow:0 20px 44px -28px rgba(0,0,0,0.28);
+  }
+  .eyebrow2{
+    font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.14em;
+    color:var(--eosin); text-transform:uppercase; margin-bottom:14px;
+  }
+  .uploadCard h1{
+    font-family:'Fraunces',serif; font-weight:700; font-size:clamp(28px,6vw,38px);
+    line-height:1.08; margin:0 0 14px; letter-spacing:-0.01em;
+  }
+  .uploadCard p.lede{ color:var(--ink-dim); font-size:15px; line-height:1.6; margin:0 0 26px; }
+
+  .dropzone{
+    border:1.5px dashed var(--eosin-dim); border-radius:16px; padding:30px 20px;
+    text-align:center; cursor:pointer; transition:border-color .15s, background .15s;
+    margin-bottom:18px; touch-action:manipulation;
+  }
+  .dropzone:hover, .dropzone.drag{ border-color:var(--eosin); background:rgba(249,115,22,0.05); }
+  .dropzone .dz-title{ font-family:'Fraunces',serif; font-size:17px; margin-bottom:6px; }
+  .dropzone .dz-sub{ font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-dim); }
+  #fileInput{ display:none; }
+
+  .or-row{ display:flex; align-items:center; gap:12px; margin:18px 0; color:var(--ink-dim); font-size:12px; font-family:'IBM Plex Mono',monospace;}
+  .or-row::before, .or-row::after{ content:""; flex:1; height:1px; background:var(--line); }
+
+  textarea#pasteBox{
+    width:100%; min-height:110px; resize:vertical; border-radius:12px;
+    background:#f4f5f7; border:1px solid var(--line); color:var(--ink);
+    font-family:'IBM Plex Mono',monospace; font-size:16px; padding:12px 14px; line-height:1.5;
+    touch-action:pan-y;
+  }
+  @media (min-width:640px){ textarea#pasteBox{ font-size:12.5px; } }
+  textarea#pasteBox:focus{ outline:none; border-color:var(--eosin-dim); }
+
+  .btnRow{ display:flex; gap:10px; margin-top:14px; }
+  button{
+    font-family:'Inter',sans-serif; font-size:13.5px; font-weight:500; cursor:pointer;
+    border-radius:10px; padding:11px 16px; min-height:44px; border:1px solid var(--line);
+    background:transparent; color:var(--ink); touch-action:manipulation;
+    appearance:none; -webkit-appearance:none; box-sizing:border-box;
+  }
+  button.primary{ background:var(--hema); border:none; color:#fff; }
+  button:hover{ filter:brightness(1.08); }
+  button:disabled{ opacity:.4; cursor:not-allowed; }
+
+  .formatHint{
+    margin-top:24px; padding-top:20px; border-top:1px solid var(--line);
+    font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-dim); line-height:1.8;
+  }
+  .formatHint b{ color:var(--gold); font-weight:500; }
+  .errMsg{ color:#f97316; font-size:12.5px; margin-top:10px; display:none; }
+
+  .libraryBlock{ margin-top:22px; padding-top:20px; border-top:1px solid var(--line); }
+
+  .promptBlock{ margin-top:22px; padding-top:20px; border-top:1px solid var(--line); }
+  .copyPromptBtn{
+    width:100%; display:flex; align-items:center; justify-content:center; gap:10px;
+    position:relative; padding:13px 16px;
+  }
+  .promptCopyIcon, .promptCheckIcon{
+    width:16px; height:16px; fill:none; stroke:#fff; stroke-width:2;
+    stroke-linecap:round; stroke-linejoin:round; flex-shrink:0; transition:opacity .12s, transform .12s;
+  }
+  .promptCheckIcon{ position:absolute; left:16px; opacity:0; transform:scale(0.6); }
+  .copyPromptBtn.copied .promptCopyIcon{ opacity:0; transform:scale(0.6); }
+  .copyPromptBtn.copied .promptCheckIcon{ opacity:1; transform:scale(1); }
+  .copyPromptBtn.copied .promptBtnLabel::after{ content:'Copied — paste it into your AI of choice'; }
+  .copyPromptBtn.copied .promptBtnLabel{ font-size:0; }
+  .copyPromptBtn.copied .promptBtnLabel::after{ font-size:13.5px; }
+  .promptHint{
+    margin:10px 0 0; font-family:'IBM Plex Mono',monospace; font-size:11px;
+    color:var(--ink-dim); line-height:1.6; text-align:center;
+  }
+  .libraryHead{
+    display:flex; align-items:center; justify-content:space-between;
+    font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.08em;
+    text-transform:uppercase; color:var(--ink-dim); margin-bottom:12px;
+  }
+  .libraryHead button{
+    font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:none; letter-spacing:0;
+    color:var(--ink-dim); border:1px solid var(--line); border-radius:100px; padding:5px 11px; background:transparent;
+    cursor:pointer; touch-action:manipulation;
+  }
+  .libraryHead button:hover{ color:var(--eosin); border-color:var(--eosin-dim); }
+  .libraryList{ display:flex; flex-direction:column; gap:8px; max-height:260px; overflow-y:auto; }
+  .libraryRow{
+    display:flex; align-items:center; gap:10px; padding:11px 12px; border-radius:12px;
+    background:rgba(255,255,255,0.03); border:1px solid transparent; cursor:pointer;
+  }
+  .libraryRow:hover{ background:rgba(249,115,22,0.07); border-color:var(--eosin-dim); }
+  .libraryRow .lbMain{ flex:1; min-width:0; }
+  .libraryRow .lbTitle{
+    font-family:'Fraunces',serif; font-size:15px; color:var(--ink);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .libraryRow .lbMeta{
+    font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-dim); margin-top:2px;
+  }
+  .libraryRow .lbRemove{
+    flex-shrink:0; width:26px; height:26px; border-radius:50%; border:none; background:transparent;
+    color:var(--ink-dim); font-size:15px; cursor:pointer; touch-action:manipulation;
+  }
+  .libraryRow .lbRemove:hover{ color:var(--eosin); background:rgba(249,115,22,0.1); }
+
+  /* ---------- reader ---------- */
+  #readerScreen{ display:none; position:relative; z-index:1; }
+  header.top{
+    position:fixed; top:0; left:0; right:0; z-index:20;
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:calc(16px + env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right)) 16px calc(20px + env(safe-area-inset-left));
+    background:#ffffff; border-bottom:1px solid var(--line);
+  }
+  header.top .brand{
+    font-family:'Fraunces',serif; font-weight:600; font-size:14px; letter-spacing:0.01em;
+    color:var(--ink); max-width:56vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    flex-shrink:1; min-width:0;
+  }
+  header.top .brand .num{ color:var(--eosin); font-variant-numeric:tabular-nums; font-size:11px; margin-left:8px;}
+  header.top .swap{
+    font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-dim);
+    border:1px solid var(--line); border-radius:100px; padding:8px 12px; background:#ffffff;
+    cursor:pointer; flex-shrink:0; white-space:nowrap; min-height:32px;
+  }
+  header.top .swap:hover{ color:var(--ink); border-color:var(--eosin-dim); }
+
+  .headerBtns{ display:flex; align-items:center; gap:8px; flex-shrink:0; }
+  .iconBtn{
+    display:flex; align-items:center; justify-content:center;
+    width:36px; height:36px; border-radius:100px;
+    border:1px solid var(--line); background:#ffffff; color:var(--ink-dim);
+    cursor:pointer; touch-action:manipulation; flex-shrink:0; padding:0;
+    appearance:none; -webkit-appearance:none; box-sizing:border-box;
+  }
+  .iconBtn:hover, .iconBtn.active{ color:var(--ink); border-color:var(--eosin-dim); }
+
+  .jumpBackdrop{
+    position:fixed; inset:0; z-index:24; background:rgba(10,10,10,0.45);
+    opacity:0; pointer-events:none; transition:opacity .15s;
+  }
+  .jumpBackdrop.open{ opacity:1; pointer-events:auto; }
+
+  .jumpPanel{
+    position:fixed; top:0; left:0; right:0; z-index:25;
+    background:#ffffff;
+    border-bottom:1px solid var(--line);
+    padding:calc(70px + env(safe-area-inset-top)) 20px 18px;
+    transform:translateY(-100%); transition:transform .18s ease;
+    box-shadow:0 16px 32px -20px rgba(0,0,0,0.22);
+    max-height:100vh; max-height:100dvh; overflow-y:auto;
+  }
+  .jumpPanel.open{ transform:translateY(0); }
+
+  .jumpRow{ display:flex; gap:8px; max-width:480px; margin:0 auto; }
+  #jumpInput{
+    flex:1; min-width:0; font-family:'IBM Plex Mono',monospace; font-size:16px;
+    background:#f4f5f7; border:1px solid var(--line); border-radius:10px;
+    color:var(--ink); padding:11px 14px; touch-action:manipulation;
+  }
+  @media (min-width:640px){ #jumpInput{ font-size:13.5px; } }
+  #jumpInput:focus, #searchInput:focus{ outline:none; border-color:var(--eosin-dim); }
+
+  .jumpDivider{
+    max-width:480px; margin:16px auto 10px; text-align:center;
+    font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:0.08em;
+    text-transform:uppercase; color:var(--ink-dim);
+  }
+  #searchInput{
+    display:block; width:100%; max-width:480px; margin:0 auto;
+    font-family:'Inter',sans-serif; font-size:16px;
+    background:#f4f5f7; border:1px solid var(--line); border-radius:10px;
+    color:var(--ink); padding:11px 14px; touch-action:manipulation;
+  }
+  @media (min-width:640px){ #searchInput{ font-size:14px; } }
+
+  .searchResults{ max-width:480px; margin:12px auto 0; display:flex; flex-direction:column; gap:6px; }
+  .searchResult{
+    display:flex; align-items:flex-start; gap:10px; text-align:left;
+    padding:10px 12px; border-radius:10px; border:1px solid transparent;
+    background:rgba(255,255,255,0.03); cursor:pointer; width:100%;
+    font-family:'Inter',sans-serif; color:var(--ink);
+  }
+  .searchResult:hover, .searchResult:focus{ background:rgba(249,115,22,0.08); border-color:var(--eosin-dim); outline:none; }
+  .searchResult .srIdx{
+    flex-shrink:0; font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--gold);
+    border:1px solid rgba(240,168,63,0.4); border-radius:8px; padding:3px 7px; margin-top:1px;
+  }
+  .searchResult .srBody{ min-width:0; }
+  .searchResult .srTitle{ font-family:'Fraunces',serif; font-size:14.5px; margin-bottom:2px; }
+  .searchResult .srSnippet{ font-size:12.5px; color:var(--ink-dim); line-height:1.4;
+    overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+  .searchResult mark{ background:rgba(249,115,22,0.35); color:var(--ink); border-radius:2px; }
+  .searchEmpty{ text-align:center; font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--ink-dim); padding:14px 0; }
+
+  .rail{ position:fixed; right:14px; top:50%; transform:translateY(-50%); z-index:20;
+    width:3px; height:46vh; border-radius:3px; background:rgba(0,0,0,0.10); overflow:hidden; }
+  .rail .fill{ position:absolute; left:0; top:0; width:100%; height:0%;
+    background:var(--hema); transition:height .12s linear; }
+  .count{ position:fixed; right:26px; top:50%; transform:translateY(-50%);
+    font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-dim);
+    z-index:20; writing-mode:vertical-rl; letter-spacing:0.08em; }
+
+  main{ height:100vh; height:100dvh; overflow-y:scroll; overflow-x:hidden;
+    scroll-snap-type:y mandatory; scroll-behavior:smooth;
+    touch-action:pan-y; -webkit-overflow-scrolling:touch; overscroll-behavior-y:contain; }
+  main::-webkit-scrollbar{ display:none; }
+
+  section.card{ height:100vh; height:100dvh; scroll-snap-align:start; scroll-snap-stop:always;
+    display:flex; align-items:center; justify-content:center;
+    padding:calc(90px + env(safe-area-inset-top)) calc(24px + env(safe-area-inset-right)) calc(70px + env(safe-area-inset-bottom)) calc(24px + env(safe-area-inset-left));
+    position:relative; width:100%; overflow:hidden; }
+
+  .panel{ width:100%; max-width:640px; max-height:100%; background:var(--card);
+    border:1.5px solid var(--line); border-radius:22px; padding:34px 30px 30px;
+    box-shadow:0 20px 44px -30px rgba(0,0,0,0.25); position:relative;
+    display:flex; flex-direction:column; overflow:hidden; }
+  .panel::before{ content:""; position:absolute; left:30px; right:30px; top:0; height:3px;
+    background:var(--eosin); border-radius:0 0 3px 3px; z-index:1; }
+
+  /* ---- lazy-load skeleton ---- */
+  .panel-skeleton{ min-height:220px; }
+  .skeleton-line{ height:14px; border-radius:6px; margin:0 0 14px;
+    background:linear-gradient(90deg, rgba(0,0,0,0.05) 25%, rgba(0,0,0,0.09) 37%, rgba(0,0,0,0.05) 63%);
+    background-size:400% 100%; animation:skeletonShimmer 1.4s ease-in-out infinite; }
+  .skeleton-tag{ width:84px; height:20px; margin-bottom:20px; border-radius:100px; }
+  .skeleton-title{ width:70%; height:24px; margin-bottom:20px; }
+  .skeleton-short{ width:45%; }
+  @keyframes skeletonShimmer{ 0%{ background-position:100% 0; } 100%{ background-position:-100% 0; } }
+  @media (prefers-reduced-motion: reduce){ .skeleton-line{ animation:none; } }
+
+  .heartBadge{
+    position:absolute; top:20px; right:20px; z-index:2;
+    width:34px; height:34px; border-radius:50%; border:none; cursor:pointer;
+    background:rgba(0,0,0,0.25); display:flex; align-items:center; justify-content:center;
+    touch-action:manipulation; padding:0; appearance:none; -webkit-appearance:none; box-sizing:border-box;
+  }
+  .heartIcon{ width:18px; height:18px; fill:none; stroke:var(--ink-dim); stroke-width:1.8; transition:fill .12s, stroke .12s, transform .12s; }
+  .heartBadge.liked .heartIcon{ fill:var(--eosin); stroke:var(--eosin); }
+  .heartBadge:active .heartIcon{ transform:scale(0.88); }
+
+  .heartBurst{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    pointer-events:none; opacity:0; z-index:5;
+  }
+  .heartBurst svg{ width:96px; height:96px; fill:#fff; filter:drop-shadow(0 4px 18px rgba(0,0,0,0.45)); }
+  .heartBurst.burst{ animation:heartPop .7s cubic-bezier(.17,.89,.32,1.49); }
+  @keyframes heartPop{
+    0%{ opacity:0; transform:scale(0.3); }
+    18%{ opacity:1; transform:scale(1.15); }
+    32%{ transform:scale(0.95); }
+    45%{ transform:scale(1.05); }
+    75%{ opacity:1; transform:scale(1); }
+    100%{ opacity:0; transform:scale(1); }
+  }
+
+  .likedRow{
+    display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:10px;
+    background:rgba(255,255,255,0.03); cursor:pointer; width:100%; text-align:left;
+    font-family:'Inter',sans-serif; color:var(--ink); border:1px solid transparent;
+  }
+  .likedRow:hover{ background:rgba(249,115,22,0.08); border-color:var(--eosin-dim); }
+  .likedRow .heartIcon{ width:14px; height:14px; fill:var(--eosin); stroke:var(--eosin); flex-shrink:0; }
+  .likedRow .lrIdx{ flex-shrink:0; font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--gold);
+    border:1px solid rgba(240,168,63,0.4); border-radius:8px; padding:3px 7px; }
+  .likedRow .lrTitle{ font-family:'Fraunces',serif; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .likedEmpty{ text-align:center; font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--ink-dim); padding:14px 0; }
+
+  .eyebrow{ display:flex; align-items:center; gap:10px; margin-bottom:16px; flex-shrink:0; position:relative; z-index:1; }
+  .section-tag{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:0.12em;
+    text-transform:uppercase; color:var(--eosin); border:1px solid var(--eosin-dim); border-radius:100px; padding:4px 10px; }
+  .idx-tag{ font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--gold);
+    border:1px solid rgba(240,168,63,0.4); border-radius:100px; padding:4px 9px; opacity:0.9; }
+
+  h2{ font-family:'Fraunces',serif; font-weight:600; font-size:clamp(20px,4.2vw,26px);
+    line-height:1.28; margin:0 0 16px; letter-spacing:-0.01em; flex-shrink:0; }
+
+  /* ---- rich card body formatting ---- */
+  .body{ font-size:16px; line-height:1.72; color:#1f2430;
+    flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch;
+    padding-right:2px; }
+  .body p{ margin:0 0 16px; }
+  .body p:first-of-type{ font-size:17px; }
+  .body p:last-child{ margin-bottom:4px; }
+  .body b{ color:var(--eosin); font-weight:600; }
+  .body i{ color:var(--hema); font-style:italic; }
+  .body u{ text-decoration:underline; text-decoration-color:var(--eosin-dim); text-underline-offset:2px; }
+  .body a{ color:var(--hema); text-decoration:underline; text-decoration-color:var(--soft-blue);
+    text-underline-offset:2px; font-weight:500; }
+  .body a:hover{ text-decoration-color:var(--hema); }
+  .body h3.card-subhead, .body h4.card-subhead, .body h5.card-subhead{
+    font-family:'Fraunces',serif; font-weight:600; color:var(--ink);
+    margin:14px 0 8px; line-height:1.3; }
+  .body h3.card-subhead{ font-size:17px; }
+  .body h4.card-subhead{ font-size:15px; }
+  .body h5.card-subhead{ font-size:13.5px; color:var(--ink-dim); }
+  .body hr.card-hr{ border:none; border-top:1px solid var(--line); margin:16px 0; }
+  .body code{ font-family:'IBM Plex Mono',monospace; font-size:0.88em; background:rgba(255,255,255,0.07);
+    padding:2px 6px; border-radius:5px; color:var(--gold); }
+  .body ul, .body ol{ margin:4px 0 14px; padding-left:22px; }
+  .body li{ margin:5px 0; }
+  .body li::marker{ color:var(--eosin); }
+  .body blockquote{ margin:10px 0 14px; padding:6px 0 6px 14px; border-left:2.5px solid var(--eosin-dim);
+    color:var(--ink-dim); font-style:italic; }
+  .body pre{ font-family:'IBM Plex Mono',monospace; font-size:12.5px; line-height:1.55; background:#f4f5f7;
+    border:1px solid var(--line); border-radius:12px; padding:14px 16px; overflow-x:auto; margin:6px 0 14px;
+    white-space:pre-wrap; word-break:break-word; color:#1f2430; }
+  .body pre code{ background:none; padding:0; color:inherit; }
+
+  .body mark.hl{
+    background:var(--soft-orange); color:var(--ink); padding:1px 4px; border-radius:4px;
+    box-shadow:inset 0 0 0 1px rgba(234,88,12,0.25);
+  }
+
+  .body figure.card-figure{
+    margin:6px 0 16px; border-radius:14px; overflow:hidden;
+    border:1px solid var(--line); background:#f4f5f7;
+  }
+  .body figure.card-figure img{
+    display:block; width:100%; max-height:280px; object-fit:cover; background:#f0f1f3;
+  }
+  .body figure.card-figure figcaption{
+    padding:8px 12px; font-family:'IBM Plex Mono',monospace; font-size:10.5px;
+    color:var(--ink-dim); border-top:1px solid var(--line); line-height:1.5;
+  }
+
+  table.short-table{ width:100%; border-collapse:collapse; margin:6px 0 14px; font-size:14px;
+    display:block; overflow-x:auto; white-space:nowrap; }
+  table.short-table thead, table.short-table tbody{ display:table; width:100%; table-layout:fixed; }
+  table.short-table th, table.short-table td{ border:1px solid var(--line); padding:8px 10px; text-align:left;
+    white-space:normal; vertical-align:top; }
+  table.short-table th{ background:rgba(249,115,22,0.09); color:var(--eosin); font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px; text-transform:uppercase; letter-spacing:0.05em; font-weight:500; }
+  table.short-table tr:nth-child(even) td{ background:rgba(255,255,255,0.02); }
+
+  .fig-ref{ display:flex; align-items:center; gap:7px; font-family:'IBM Plex Mono',monospace; font-size:11.5px;
+    color:var(--gold); border:1px solid rgba(240,168,63,0.35); border-radius:10px; padding:8px 12px;
+    margin:6px 0 14px; background:rgba(240,168,63,0.06); width:fit-content; }
+
+  .mermaid-wrap{ margin:6px 0 14px; padding:16px; background:#f4f5f7; border:1px solid var(--line);
+    border-radius:14px; overflow-x:auto; display:flex; justify-content:center; }
+  .mermaid-wrap svg{ max-width:100%; height:auto; }
+
+  /* ---- milestone / "relieve" card ---- */
+  section.card.milestone .panel{
+    background:var(--soft-blue);
+    border-color:rgba(37,99,235,0.35);
+  }
+  section.card.milestone .panel::before{
+    background:var(--hema);
+  }
+  .milestone h2{ font-size:clamp(24px,5.4vw,32px); }
+  .milestone .sub{ color:var(--ink-dim); font-size:14.5px; margin:0 0 20px; }
+  .breakBox{
+    border-top:1px solid var(--line); padding-top:18px; margin-top:4px;
+  }
+  .breakBox label{
+    display:block; font-family:'IBM Plex Mono',monospace; font-size:10.5px;
+    letter-spacing:0.08em; text-transform:uppercase; color:var(--ink-dim); margin-bottom:10px;
+  }
+  .breakRow{ display:flex; align-items:center; gap:10px; }
+  .breakMins{
+    width:64px; font-family:'IBM Plex Mono',monospace; font-size:16px; text-align:center;
+    background:#f4f5f7; border:1px solid var(--line); border-radius:9px; color:var(--ink);
+    padding:9px 6px; touch-action:manipulation;
+  }
+  .breakRow span{ font-size:13px; color:var(--ink-dim); }
+  .breakRow .breakSetBtn{ margin-left:auto; }
+  .breakStatus{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+  .breakCountdown{
+    font-family:'IBM Plex Mono',monospace; font-size:15px; color:var(--eosin);
+    font-variant-numeric:tabular-nums;
+  }
+  .breakNote{
+    font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-dim);
+    margin-top:10px; line-height:1.6;
+  }
+  .breakNote.good{ color:#3b82f6; }
+
+  /* ---- settings, inside the jump panel ---- */
+  .settingsRow{
+    max-width:480px; margin:18px auto 0; padding-top:16px; border-top:1px solid var(--line);
+    display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;
+  }
+  .settingsField{ display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--ink-dim); }
+  .settingsField input[type=number]{
+    width:54px; font-family:'IBM Plex Mono',monospace; font-size:13px; text-align:center;
+    background:#f4f5f7; border:1px solid var(--line); border-radius:8px; color:var(--ink); padding:6px 4px;
+  }
+  .toggle{
+    position:relative; width:38px; height:22px; border-radius:100px; background:#e4e7ec;
+    border:1px solid var(--line); cursor:pointer; flex-shrink:0; touch-action:manipulation;
+  }
+  .toggle .knob{
+    position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:50%;
+    background:var(--ink-dim); transition:transform .15s, background .15s;
+  }
+  .toggle.on{ background:rgba(59,130,246,0.35); border-color:var(--hema); }
+  .toggle.on .knob{ transform:translateX(16px); background:var(--eosin); }
+
+  .notifBtn{
+    font-family:'Inter',sans-serif; font-size:11.5px; font-weight:500; cursor:pointer;
+    border-radius:100px; padding:6px 12px; border:1px solid var(--eosin-dim);
+    background:rgba(249,115,22,0.08); color:var(--eosin); touch-action:manipulation;
+  }
+  .notifBtn:hover{ background:rgba(249,115,22,0.16); }
+  #notifStatusLabel{ white-space:nowrap; }
+
+  .cover, .end{ display:flex; flex-direction:column; align-items:flex-start; justify-content:center;
+    height:100vh; height:100dvh;
+    padding:calc(24px + env(safe-area-inset-top)) calc(26px + env(safe-area-inset-right)) calc(70px + env(safe-area-inset-bottom)) calc(26px + env(safe-area-inset-left));
+    max-width:640px; margin:0 auto; scroll-snap-align:start; width:100%; }
+  .cover h1{ font-family:'Fraunces',serif; font-weight:700; font-size:clamp(34px,8vw,52px);
+    line-height:1.05; margin:0 0 16px; letter-spacing:-0.02em; }
+  .cover h1 em{ color:var(--eosin); font-style:italic; }
+  .cover p{ font-size:15.5px; line-height:1.6; color:var(--ink-dim); max-width:480px; margin:0 0 10px; }
+  .scroll-hint{ margin-top:32px; display:flex; align-items:center; gap:10px;
+    font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-dim); }
+  .scroll-hint .arrow{ animation:bob 1.6s ease-in-out infinite; color:var(--eosin); }
+  @keyframes bob{ 0%,100%{transform:translateY(0);} 50%{transform:translateY(6px);} }
+  .end h2{ font-size:clamp(22px,5vw,30px); }
+  .end p{ color:var(--ink-dim); font-size:15px; line-height:1.6; }
+
+  @media (max-width:480px){
+    .rail, .count{ display:none; }
+    section.card{ padding:calc(80px + env(safe-area-inset-top)) 16px calc(60px + env(safe-area-inset-bottom)); }
+    .panel{ padding:26px 22px 24px; border-radius:18px; }
+    .uploadCard{ padding:28px 22px; border-radius:20px; }
+    header.top .brand{ font-size:13px; max-width:40vw; }
+    h2{ font-size:clamp(19px,5.6vw,24px); }
+    p.body{ font-size:15px; }
+    .cover h1{ font-size:clamp(30px,10.5vw,44px); }
+    .jumpPanel{ padding-left:16px; padding-right:16px; }
+    header.top .swap{ font-size:9px; padding:8px 9px; }
+  }
+  @media (max-width:360px){
+    .uploadCard{ padding:22px 18px; }
+    .dropzone{ padding:24px 14px; }
+    header.top .swap{ font-size:9.5px; padding:7px 10px; }
+  }
+  @media (max-height:560px) and (orientation:landscape){
+    section.card, .cover, .end{ padding-top:70px; padding-bottom:20px; }
+    .panel{ padding:20px 22px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="uploadScreen">
+  <div class="uploadCard">
+    <div class="eyebrow2">Shorts Reader</div>
+    <h1>Drop in your deck.</h1>
+    <p class="lede">Loads a <b>.md/.txt</b> slide file or a <b>.json</b> card array and turns it into a one-idea-per-screen vertical scroll — same reader shell, any deck. Nothing you load ever leaves your browser. Once a deck's open, hit <b>/</b> or the search icon top-right to jump to a card number or search its contents.</p>
+
+    <div class="dropzone" id="dropzone">
+      <div class="dz-title">Click or drag a file here</div>
+      <div class="dz-sub">.md · .txt · .json</div>
+      <input type="file" id="fileInput" accept=".md,.txt,.json,text/markdown,text/plain,application/json">
+    </div>
+
+    <div class="or-row">or paste raw text</div>
+    <textarea id="pasteBox" placeholder="Paste .md slide text or a JSON array here…"></textarea>
+    <div class="btnRow">
+      <button class="primary" id="renderPasteBtn">Render pasted content</button>
+    </div>
+    <div class="errMsg" id="errMsg"></div>
+
+    <div class="libraryBlock" id="libraryBlock" hidden>
+      <div class="libraryHead">
+        <span>Your library</span>
+        <button type="button" id="clearBtn">Clear library</button>
+      </div>
+      <div id="libraryList" class="libraryList"></div>
+    </div>
+
+    <div class="promptBlock">
+      <button type="button" class="primary copyPromptBtn" id="copyPromptBtn">
+        <svg viewBox="0 0 24 24" class="promptCopyIcon"><rect x="9" y="9" width="12" height="12" rx="2.5"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg>
+        <svg viewBox="0 0 24 24" class="promptCheckIcon"><path d="M4 12l5 5L20 6"></path></svg>
+        <span class="promptBtnLabel">Copy Shorts-Maker prompt</span>
+      </button>
+      <p class="promptHint">Copies the full rules + format spec for turning a chapter into a deck — paste it into Claude/ChatGPT/DeepSeek along with your source text.</p>
+      <p class="promptHint" style="margin-top:12px;">Or build a deck by hand in the <a href="card-maker.html" style="color:var(--eosin);text-decoration:underline;text-underline-offset:2px;">Card Maker</a> — a visual editor with live preview, autosave, and image embedding.</p>
+    </div>
+
+    <div class="formatHint">
+      <b>Markdown format —</b> blocks separated by a line of <b>---</b>, each starting with<br>
+      <b>## SLIDE 1: Title</b> followed by a paragraph.<br><br>
+      <b>JSON format —</b> an array of objects, each with a title-ish key<br>
+      (<b>title</b> / <b>t</b> / <b>heading</b>) and a content-ish key (<b>content</b> / <b>c</b> / <b>body</b>).<br>
+      Optional <b>tag</b> or <b>section</b> key renders as a small pill on the card.<br><br>
+      <b>Inside a card body, this all works —</b><br>
+      <b>**bold**</b>, <b>*italic*</b>, <b>__underline__</b>, <b>`code`</b><br>
+      <b>- bullet</b> / <b>1. numbered</b> lists, and <b>&gt; blockquotes</b><br>
+      <b>markdown tables</b> — a header row, a <b>|---|---|</b> separator, then rows<br>
+      <b>{{fig: Fig 7.4}}</b> — renders a "see textbook" reference chip<br>
+      <b>```mermaid</b> fenced blocks — real flowcharts/diagrams (Mermaid syntax)<br>
+      <b>```html</b> fenced blocks — paste raw HTML straight through, e.g. a table
+    </div>
+  </div>
+</div>
+
+<div id="readerScreen">
+  <header class="top">
+    <div class="brand" id="deckTitle">Deck <span class="num" id="hcount"></span></div>
+    <div class="headerBtns">
+      <button class="iconBtn" id="jumpBtn" title="Jump / search (press /)" aria-label="Jump or search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+      </button>
+      <button class="swap" id="swapBtn">load a different file</button>
+    </div>
+  </header>
+
+  <div id="jumpPanel" class="jumpPanel">
+    <div class="jumpRow">
+      <input type="number" id="jumpInput" min="1" placeholder="Go to card #" inputmode="numeric">
+      <button class="primary" id="jumpGoBtn">Go</button>
+    </div>
+    <div class="jumpDivider">or search title / content</div>
+    <input type="text" id="searchInput" placeholder="Search this deck…" autocomplete="off">
+    <div id="searchResults" class="searchResults"></div>
+
+    <div class="jumpDivider">❤ liked cards</div>
+    <div id="likedList" class="searchResults"></div>
+
+    <div class="settingsRow">
+      <div class="settingsField">
+        <span>Milestone every</span>
+        <input type="number" id="milestoneEvery" min="3" max="200" value="10">
+        <span>cards</span>
+      </div>
+      <div class="settingsField">
+        <span>Haptics</span>
+        <div class="toggle on" id="hapticsToggle" role="switch" aria-checked="true"><div class="knob"></div></div>
+      </div>
+      <div class="settingsField">
+        <span id="notifStatusLabel">Notifications: checking…</span>
+        <button type="button" id="notifEnableBtn" class="notifBtn">Enable</button>
+      </div>
+    </div>
+  </div>
+  <div id="jumpBackdrop" class="jumpBackdrop"></div>
+
+  <div class="rail"><div class="fill" id="railFill"></div></div>
+  <div class="count" id="countLabel">1 / 1</div>
+  <main id="main"></main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+(function(){
+  const uploadScreen = document.getElementById('uploadScreen');
+  const readerScreen = document.getElementById('readerScreen');
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  const pasteBox = document.getElementById('pasteBox');
+  const renderPasteBtn = document.getElementById('renderPasteBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const libraryBlock = document.getElementById('libraryBlock');
+  const libraryList = document.getElementById('libraryList');
+  const errMsg = document.getElementById('errMsg');
+  const main = document.getElementById('main');
+  const deckTitleEl = document.getElementById('deckTitle');
+  const hcount = document.getElementById('hcount');
+  const railFill = document.getElementById('railFill');
+  const countLabel = document.getElementById('countLabel');
+  const swapBtn = document.getElementById('swapBtn');
+  const jumpBtn = document.getElementById('jumpBtn');
+  const jumpPanel = document.getElementById('jumpPanel');
+  const jumpBackdrop = document.getElementById('jumpBackdrop');
+  const jumpInput = document.getElementById('jumpInput');
+  const jumpGoBtn = document.getElementById('jumpGoBtn');
+  const searchInput = document.getElementById('searchInput');
+  const searchResults = document.getElementById('searchResults');
+  const likedList = document.getElementById('likedList');
+  const milestoneEveryInput = document.getElementById('milestoneEvery');
+  const hapticsToggle = document.getElementById('hapticsToggle');
+  const notifStatusLabel = document.getElementById('notifStatusLabel');
+  const notifEnableBtn = document.getElementById('notifEnableBtn');
+  const copyPromptBtn = document.getElementById('copyPromptBtn');
+
+  let cardIndexList = []; // [{pos, title, body, el, card, hydrated}] — pos is the 1-based on-screen card number
+  let currentDeck = null;
+  let likedPositions = new Set();
+  let mermaidInited = false;
+  let hydrationObserver = null;
+
+  const HEART_SVG = '<svg viewBox="0 0 24 24" class="heartIcon"><path d="M12 21s-6.7-4.35-9.3-8.1C1.1 10.5 1.6 7.4 4 5.8c2.1-1.4 4.6-.8 6 1 .5.6.8 1 .9 1.2.1-.2.4-.6.9-1.2 1.4-1.8 3.9-2.4 6-1 2.4 1.6 2.9 4.7 1.3 7.1C18.7 16.65 12 21 12 21z"/></svg>';
+
+  // Build the full inner HTML for a card panel (used on hydration).
+  function cardPanelHTML(card, pos){
+    return '<div class="panel">' +
+      '<button type="button" class="heartBadge" data-pos="'+pos+'" aria-label="Like this card">'+HEART_SVG+'</button>' +
+      '<div class="eyebrow">' +
+        (card.tag ? '<span class="section-tag">'+escapeHtml(String(card.tag))+'</span>' : '') +
+        '<span class="idx-tag">'+String(card.idx).padStart(2,'0')+'</span>' +
+      '</div>' +
+      '<h2>'+escapeHtml(card.title)+'</h2>' +
+      '<div class="body">'+formatBody(card.body)+'</div>' +
+      '<div class="heartBurst" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 21s-6.7-4.35-9.3-8.1C1.1 10.5 1.6 7.4 4 5.8c2.1-1.4 4.6-.8 6 1 .5.6.8 1 .9 1.2.1-.2.4-.6.9-1.2 1.4-1.8 3.9-2.4 6-1 2.4 1.6 2.9 4.7 1.3 7.1C18.7 16.65 12 21 12 21z"/></svg></div>' +
+    '</div>';
+  }
+
+  // Hydrate a placeholder card section into a real panel, once. Runs Mermaid
+  // for that card's diagrams (if any) lazily, only when it comes into view.
+  function hydrateCard(item){
+    if (!item || item.hydrated) return;
+    item.hydrated = true;
+    item.el.classList.remove('card-lazy');
+    item.el.innerHTML = cardPanelHTML(item.card, item.pos);
+    applyLikeState(item.el, item.pos);
+    const mermaids = item.el.querySelectorAll('.mermaid');
+    if (mermaids.length && window.mermaid && mermaidInited){
+      try { mermaid.run({ nodes: mermaids }); } catch(e){ /* diagram lib unavailable — code block remains */ }
+    }
+  }
+
+  // IntersectionObserver-driven hydration: hydrate any card within ~2 screens
+  // of the viewport. Also proactively hydrates the immediate neighbours of the
+  // resume target so jumping/resuming never lands on a skeleton.
+  function setupLazyHydration(){
+    if (hydrationObserver){ hydrationObserver.disconnect(); }
+    if (!('IntersectionObserver' in window)){
+      // No IO (very old browser) — hydrate everything up front, original behavior.
+      cardIndexList.forEach(hydrateCard);
+      return;
+    }
+    hydrationObserver = new IntersectionObserver((entries) => {
+      for (const entry of entries){
+        if (entry.isIntersecting){
+          const pos = parseInt(entry.target.dataset.pos, 10);
+          const item = cardIndexList.find(c => c.pos === pos);
+          hydrateCard(item);
+        }
+      }
+    }, { root: main, rootMargin: '200% 0px 200% 0px', threshold: 0 });
+    cardIndexList.forEach(item => hydrationObserver.observe(item.el));
+  }
+
+  // Ensure a specific card (and its neighbours) are hydrated right now — used
+  // before jumping/scrolling to a card so it's never a skeleton on arrival.
+  function ensureHydrated(pos){
+    for (let p = pos - 1; p <= pos + 1; p++){
+      const item = cardIndexList.find(c => c.pos === p);
+      if (item) hydrateCard(item);
+    }
+  }
+
+  function likesKeyFor(deck){
+    return 'shorts-reader:likes:' + (deck && deck.title ? deck.title : 'untitled');
+  }
+  function loadLikes(deck){
+    try {
+      const raw = localStorage.getItem(likesKeyFor(deck));
+      return new Set(raw ? JSON.parse(raw) : []);
+    } catch(e){ return new Set(); }
+  }
+  function saveLikes(deck){
+    localStorage.setItem(likesKeyFor(deck), JSON.stringify([...likedPositions]));
+  }
+
+  const MILESTONE_KEY = 'shorts-reader:milestone-every';
+  const HAPTICS_KEY = 'shorts-reader:haptics-on';
+  let milestoneEvery = parseInt(localStorage.getItem(MILESTONE_KEY), 10) || 10;
+  let hapticsOn = localStorage.getItem(HAPTICS_KEY) !== 'off';
+  const canVibrate = 'vibrate' in navigator;
+
+  milestoneEveryInput.value = milestoneEvery;
+  hapticsToggle.classList.toggle('on', hapticsOn);
+  hapticsToggle.setAttribute('aria-checked', String(hapticsOn));
+  if (!canVibrate){
+    hapticsToggle.style.opacity = '0.35';
+    hapticsToggle.title = 'This browser has no Vibration API (all iOS Safari, some desktop) — toggle has no effect here.';
+  }
+
+  const LIBRARY_KEY = 'shorts-reader:library';
+  const LAST_OPENED_KEY = 'shorts-reader:last-opened';
+  let posSaveTimer = null;
+
+  function loadLibrary(){
+    try {
+      const raw = localStorage.getItem(LIBRARY_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch(e){ return {}; }
+  }
+  function saveLibrary(lib){
+    try { localStorage.setItem(LIBRARY_KEY, JSON.stringify(lib)); } catch(e){ /* storage full — ignore, non-fatal */ }
+  }
+  function upsertLibraryEntry(deck){
+    const lib = loadLibrary();
+    const existing = lib[deck.title];
+    lib[deck.title] = {
+      title: deck.title,
+      cards: deck.cards,
+      pos: existing ? existing.pos : 1,
+      addedAt: existing ? existing.addedAt : Date.now(),
+      updatedAt: Date.now(),
+    };
+    saveLibrary(lib);
+    localStorage.setItem(LAST_OPENED_KEY, deck.title);
+    return lib[deck.title];
+  }
+  function saveLibraryPos(deckTitle, pos){
+    const lib = loadLibrary();
+    if (!lib[deckTitle]) return;
+    lib[deckTitle].pos = pos;
+    lib[deckTitle].updatedAt = Date.now();
+    saveLibrary(lib);
+  }
+  function relativeTime(ts){
+    const diff = Date.now() - ts;
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return mins + 'm ago';
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return hrs + 'h ago';
+    const days = Math.floor(hrs / 24);
+    if (days < 30) return days + 'd ago';
+    return new Date(ts).toLocaleDateString();
+  }
+  function renderLibrary(){
+    const lib = loadLibrary();
+    const entries = Object.values(lib).sort((a,b) => b.updatedAt - a.updatedAt);
+    if (!entries.length){
+      libraryBlock.hidden = true;
+      return;
+    }
+    libraryBlock.hidden = false;
+    libraryList.innerHTML = entries.map(e => `
+      <div class="libraryRow" data-title="${escapeHtml(e.title)}">
+        <div class="lbMain">
+          <div class="lbTitle">${escapeHtml(e.title)}</div>
+          <div class="lbMeta">${e.cards.length} cards · card ${e.pos} · ${relativeTime(e.updatedAt)}</div>
+        </div>
+        <button type="button" class="lbRemove" data-remove="${escapeHtml(e.title)}" aria-label="Remove from library">×</button>
+      </div>
+    `).join('');
+  }
+  function openLibraryEntry(title){
+    const lib = loadLibrary();
+    const entry = lib[title];
+    if (!entry) return;
+    localStorage.setItem(LAST_OPENED_KEY, title);
+    buildReader({ title: entry.title, cards: entry.cards }, entry.pos);
+  }
+  function removeLibraryEntry(title){
+    const lib = loadLibrary();
+    delete lib[title];
+    saveLibrary(lib);
+    if (localStorage.getItem(LAST_OPENED_KEY) === title) localStorage.removeItem(LAST_OPENED_KEY);
+    renderLibrary();
+  }
+  function clearLibrary(){
+    localStorage.removeItem(LIBRARY_KEY);
+    localStorage.removeItem(LAST_OPENED_KEY);
+    renderLibrary();
+  }
+
+  const PROMPT_TEXT = `You are converting a long source document into "Shorts" — short, scrollable
+study cards, one atomic idea per card. Follow these rules exactly.
+
+CONTENT RULES
+1. Paraphrase, never transcribe. Every card must be written in your own words.
+   Do not lift full sentences from the source, even with small word swaps.
+   Direct quotation is allowed ONLY for a named definition, eponym, or fixed
+   technical phrase, and even then keep it under ~10 words and use quote marks.
+2. One card = one idea. If a source paragraph contains three distinct facts,
+   that's three cards, not one dense card. Never combine unrelated concepts
+   just to save space.
+3. Cover the entire source, in order. Do not silently skip sections. If you
+   deliberately cut something as too minor to card-ify (e.g. a passing
+   cross-reference), note it in a final "Skipped" list rather than dropping it
+   silently.
+4. Preserve every tested/load-bearing fact — numbers, named exceptions,
+   classification criteria, mechanisms — but say them in compressed, plain
+   language rather than textbook phrasing.
+5. No filler cards. Don't manufacture a "summary" or "in conclusion" card that
+   doesn't exist in the source's structure.
+
+FORMATTING RULES
+6. The reader renders real Markdown inside card bodies, so use it wherever
+   the source's own structure calls for it (don't add formatting that isn't
+   there in the source): **bold**, *italic*/_italic_, __underline__, \`code\`,
+   \`- bullets\`, \`1. numbered lists\`, \`> blockquotes\`, and full Markdown
+   tables (header row + |---|---| + data rows) — use a real table instead
+   of flattening tabular source content into a paragraph.
+7. For flowcharts or diagrams described in the source, use a fenced
+   \`\`\`mermaid\`\`\` code block so it renders as an actual diagram rather than
+   describing the diagram in prose.
+8. For a layout that's awkward in plain Markdown (a complex table, a custom
+   arrangement), use a fenced \`\`\`html\`\`\` code block instead — it gets
+   inserted raw into the card.
+9. Any card that corresponds to a source figure/image gets a
+   {{fig: Fig 7.4}} tag (use the source's own figure label) placed in the
+   card body. Never invent or reproduce the image itself — this tag alone
+   renders as a "see Fig. 7.4 in the textbook" chip pointing the reader to it.
+10. HIGHLIGHT SYNTAX: When the source visually emphasizes something —
+    red/orange highlighting, a boxed exception, a callout for an exam trap
+    or mnemonic — wrap that exact phrase in ==double equals== in the card
+    body. This renders as an actual highlighter stroke in the reader. Use
+    it sparingly and only for content the source itself flags as
+    emphasized — not for anything you personally think is important. If
+    nothing in a given card was emphasized in the source, don't force a
+    highlight in just to use the feature.
+11. IMAGE SYNTAX: If you're given a list of image URLs alongside the source
+    text, and a card corresponds to a figure/table that has a real link
+    available, embed it directly with ![Fig X.X](url) in that card's
+    body — don't just describe the image in words when an actual link
+    exists for it. If a card references a figure but NO image link was
+    provided for it, use {{fig: Fig X.X}} instead (the "see textbook"
+    chip) — never invent or guess at an image URL that wasn't given to you.
+
+LENGTH RULES
+12. Card title: 3–8 words, plain language, states the idea (not "Section 4.2").
+13. Card body: 40–90 words, in your own words. This is a soft target, not a
+    hard wall — cards can scroll internally if needed, so a slightly-over-
+    length card won't break the reader. Only let a card run past 90 words
+    when splitting it would cut a single idea in half (e.g. a table plus the
+    one sentence explaining it) — don't use that as an excuse to write
+    longer cards by default. Markdown/HTML/mermaid syntax and {{fig: ...}}
+    tags don't count toward the word limit.
+14. Total cards should roughly track the source's own section count — a
+    35-page chapter with ~20 headed sections should land somewhere around
+    25–45 cards, not 300 and not 8. If your draft is wildly outside that
+    range, reconsider your granularity before finalizing.
+
+STRUCTURE RULES
+15. Group related cards under the same section label where the source has
+    clear headings (e.g. all cards from "Metastasis" share that label) — see
+    output format below for where that label goes.
+16. Order cards to match the source's own structure. Don't reorder for
+    narrative effect.
+
+SELF-CHECK BEFORE YOU OUTPUT
+17. For every card, ask: "Could I show this sentence to someone next to the
+    original paragraph and have them think I copied it?" If yes, rewrite it
+    harder. Compression should change sentence structure, not just synonym-
+    swap words.
+18. Confirm no card body ballooned past the soft 40–90 word target without a
+    real reason (an unsplittable idea), and none silently exceed it out of
+    laziness.
+19. Confirm every major heading in the source produced at least one card.
+20. Confirm every table stayed a real Markdown table (not flattened to
+    prose), every described diagram became a \`\`\`mermaid\`\`\` block, and every
+    figure reference got its {{fig: ...}} tag or, where an image URL was
+    provided, its ![...](url) embed.
+21. Confirm every ==highlight== corresponds to something the source itself
+    visually emphasized, not your own judgment call.
+
+OUTPUT FORMAT — Markdown. Output ONLY in this exact structure, no preamble,
+no commentary before or after, just the deck itself:
+
+# <Deck Title> - Short Excerpts
+
+---
+
+## SLIDE 1: <Card title>
+
+<Card body, ~40-90 words (soft target), in your own words.>
+
+---
+
+## SLIDE 2: <Card title>
+
+<Card body.>
+
+---
+
+(continue for every card)
+
+---
+
+## Skipped
+(only include this final block if you deliberately omitted anything — one
+line per item, with a one-sentence reason. Omit this whole section if
+nothing was skipped.)
+
+Here is the source document to convert:
+
+---SOURCE START---
+<paste your chapter / source text here>
+---SOURCE END---`;
+
+  function escapeHtml(s){
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
+  // Reject URL schemes that can execute script or embed arbitrary payloads.
+  // http/https/mailto/relative pass through. data: is blocked EXCEPT for real
+  // image payloads (data:image/png|jpeg|gif|webp|svg... base64/utf8) — those
+  // are how the card-maker embeds pasted/uploaded images so a deck stays
+  // fully self-contained with no dead external links. data:text/html and the
+  // like stay blocked. Returns a safe URL, or '#' if the scheme is dangerous.
+  function safeUrl(url){
+    const u = String(url).trim();
+    // strip control chars/whitespace an attacker might use to sneak a scheme past us
+    const probe = u.replace(/[\u0000-\u0020]+/g,'').toLowerCase();
+    if (/^data:image\/(png|jpe?g|gif|webp|avif|bmp|svg\+xml)[;,]/i.test(probe)) return u;
+    if (/^(javascript|data|vbscript|file):/i.test(probe)) return '#';
+    return u;
+  }
+
+  // inline-level: inline code (protected first so nothing formats inside it),
+  // then bold, highlight, underline, italic, links. Code spans are stashed
+  // out before any other rule runs, so `a*b*c` and `**x**` stay literal.
+  function inline(s){
+    const codeStash = [];
+    let out = escapeHtml(s);
+    // 0) protect inline code spans — pull them out, format later verbatim
+    out = out.replace(/`([^`]+)`/g, (m, code) => {
+      codeStash.push(code);
+      return '\u0000C' + (codeStash.length - 1) + '\u0000';
+    });
+    // 1) links [text](url) — sanitize the href, keep text formatting for later
+    out = out.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (m, text, url) =>
+      '<a href="' + escapeHtml(safeUrl(url)) + '" target="_blank" rel="noopener noreferrer">' + text + '</a>'
+    );
+    out = out.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+    out = out.replace(/==(.+?)==/g, '<mark class="hl">$1</mark>');
+    out = out.replace(/__(.+?)__/g, '<u>$1</u>');
+    out = out.replace(/\*(.+?)\*/g, '<i>$1</i>');
+    out = out.replace(/(?:^|[^\w])_(.+?)_(?![\w])/g, (m,g1) => m.replace('_'+g1+'_','<i>'+g1+'</i>'));
+    // restore code spans, unformatted (already escaped by the initial escapeHtml pass)
+    out = out.replace(/\u0000C(\d+)\u0000/g, (m, i) => '<code>' + codeStash[parseInt(i,10)] + '</code>');
+    return out;
+  }
+
+  function splitTableRow(line){
+    let t = line.trim();
+    if (t.startsWith('|')) t = t.slice(1);
+    if (t.endsWith('|')) t = t.slice(0, -1);
+    return t.split('|').map(c => c.trim());
+  }
+
+  // block-level: fenced code/mermaid/html, figure refs, images, tables, lists,
+  // blockquotes, paragraphs. Returns HTML. Card bodies are user/AI-authored
+  // text, not escaped-then-trusted external input, so raw ```html blocks are
+  // inserted verbatim by design (an explicit opt-in fence, not the default).
+  function formatBody(raw){
+    const blocks = [];
+    const stash = (html) => { blocks.push(html); return '\u0000B' + (blocks.length-1) + '\u0000'; };
+
+    // 1) fenced blocks: ```mermaid, ```html, ``` (generic code)
+    let text = raw.replace(/```(\w+)?[ \t]*\n([\s\S]*?)```/g, (m, lang, content) => {
+      lang = (lang || '').toLowerCase().trim();
+      const body = content.replace(/\n$/, '');
+      if (lang === 'mermaid'){
+        return stash(`<div class="mermaid-wrap"><pre class="mermaid">${escapeHtml(body)}</pre></div>`);
+      }
+      if (lang === 'html'){
+        return stash(body);
+      }
+      return stash(`<pre><code>${escapeHtml(body)}</code></pre>`);
+    });
+
+    // 2) figure references: {{fig: Fig 7.4 - caption}}
+    text = text.replace(/\{\{\s*fig\s*:\s*(.+?)\s*\}\}/gi, (m, label) =>
+      stash(`<span class="fig-ref">📖 See ${escapeHtml(label)} in the textbook</span>`)
+    );
+
+    // 2b) images: ![alt text](https://...png) — standard Markdown image syntax.
+    // Stashed BEFORE inline() ever runs on this text, since image URLs often
+    // contain underscores that the italic regex would otherwise mangle.
+    text = text.replace(/!\[([^\]]*)\]\((\S+?)\)/g, (m, alt, url) => {
+      const cleanUrl = safeUrl(url.trim());
+      if (cleanUrl === '#') return ''; // drop images with dangerous URL schemes entirely
+      const safeSrc = escapeHtml(cleanUrl);
+      const safeAlt = escapeHtml(alt.trim());
+      const cap = alt.trim() ? `<figcaption>${safeAlt}</figcaption>` : '';
+      return stash(`<figure class="card-figure"><img src="${safeSrc}" alt="${safeAlt}" loading="lazy" onerror="this.closest('figure').style.display='none'">${cap}</figure>`);
+    });
+
+    // 3) tables: a header row + a |---|---| separator row, followed by data rows
+    const lines = text.split('\n');
+    const kept = [];
+    for (let i=0; i<lines.length; i++){
+      const isRow = /^\s*\|.*\|\s*$/.test(lines[i]);
+      const nextSep = lines[i+1] && /^\s*\|?[\s:\-|]+\|?\s*$/.test(lines[i+1]) && lines[i+1].includes('-');
+      if (isRow && nextSep){
+        const header = splitTableRow(lines[i]);
+        let j = i + 2;
+        const rows = [];
+        while (j < lines.length && /^\s*\|.*\|\s*$/.test(lines[j])){
+          rows.push(splitTableRow(lines[j]));
+          j++;
+        }
+        const html = '<table class="short-table"><thead><tr>' +
+          header.map(h => `<th>${inline(h)}</th>`).join('') + '</tr></thead><tbody>' +
+          rows.map(r => '<tr>' + r.map(c => `<td>${inline(c)}</td>`).join('') + '</tr>').join('') +
+          '</tbody></table>';
+        kept.push(stash(html));
+        i = j - 1;
+        continue;
+      }
+      kept.push(lines[i]);
+    }
+    text = kept.join('\n');
+
+    // 4) paragraphs, split on blank lines; detect uniform bullet/numbered/quote
+    //    blocks, sub-headings (###) and horizontal rules
+    const chunks = text.split(/\n{2,}/);
+    const html = chunks.map(chunk => {
+      const c = chunk.trim();
+      if (!c) return '';
+      if (/^\u0000B\d+\u0000$/.test(c)) return c;
+      // standalone horizontal rule: a line of --- / *** / ___
+      if (/^\s*([-*_])(?:\s*\1){2,}\s*$/.test(c)) return '<hr class="card-hr">';
+      const ls = c.split('\n').filter(l => l.trim().length);
+      // a single ###/#### heading line inside the body
+      if (ls.length === 1){
+        const hm = ls[0].match(/^\s*(#{2,4})\s+(.+)$/);
+        if (hm){
+          const lvl = Math.min(6, hm[1].length + 1); // ## -> h3, ### -> h4 …
+          return `<h${lvl} class="card-subhead">${inline(hm[2].trim())}</h${lvl}>`;
+        }
+      }
+      if (ls.length && ls.every(l => /^\s*[-*]\s+/.test(l))){
+        return '<ul>' + ls.map(l => `<li>${inline(l.replace(/^\s*[-*]\s+/, ''))}</li>`).join('') + '</ul>';
+      }
+      if (ls.length && ls.every(l => /^\s*\d+[.)]\s+/.test(l))){
+        return '<ol>' + ls.map(l => `<li>${inline(l.replace(/^\s*\d+[.)]\s+/, ''))}</li>`).join('') + '</ol>';
+      }
+      if (ls.length && ls.every(l => /^\s*>\s?/.test(l))){
+        return '<blockquote>' + ls.map(l => inline(l.replace(/^\s*>\s?/, ''))).join('<br>') + '</blockquote>';
+      }
+      return '<p>' + ls.map(inline).join('<br>') + '</p>';
+    }).join('');
+
+    return html.replace(/\u0000B(\d+)\u0000/g, (m, idx) => blocks[parseInt(idx,10)]);
+  }
+
+  function parseMarkdown(raw){
+    let deckTitle = 'Untitled Deck';
+    const h1 = raw.match(/^#\s+(.+)$/m);
+    if (h1) deckTitle = h1[1].trim();
+
+    const blocks = raw.split(/\n\s*-{3,}\s*\n/);
+    const cards = [];
+    for (const block of blocks){
+      const b = block.trim();
+      if (!b) continue;
+      const m = b.match(/^#{1,3}\s*(?:SLIDE\s*(\d+)\s*:\s*)?(.+)$/im);
+      if (!m) continue;
+      const num = m[1] ? parseInt(m[1],10) : (cards.length+1);
+      const title = m[2].trim();
+      let body = b.slice(m.index + m[0].length).trim();
+      // optional section tag written as an HTML comment by the card-maker:
+      // "<!-- tag: Metastasis -->" on its own line just under the heading.
+      let tag = null;
+      const tagM = body.match(/^<!--\s*tag:\s*(.+?)\s*-->\s*/i);
+      if (tagM){ tag = tagM[1].trim(); body = body.slice(tagM[0].length).trim(); }
+      if (!body) continue;
+      cards.push({ idx: num, title, body, tag });
+    }
+    return { title: deckTitle, cards };
+  }
+
+  function parseJSON(raw){
+    const data = JSON.parse(raw);
+    let deckTitle = 'Untitled Deck';
+    let items = [];
+    if (Array.isArray(data)){
+      items = data;
+    } else if (data && typeof data === 'object'){
+      deckTitle = data.title || data.deck || deckTitle;
+      items = data.slides || data.cards || data.items || [];
+    }
+    const cards = items.map((it, i) => ({
+      idx: it.index ?? it.idx ?? (i+1),
+      title: it.title || it.t || it.heading || it.name || ('Card ' + (i+1)),
+      body: it.content || it.c || it.body || it.text || '',
+      tag: it.tag || it.section || it.s || null
+    })).filter(c => c.body);
+    return { title: deckTitle, cards };
+  }
+
+  function parseAny(raw){
+    const trimmed = raw.trim();
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')){
+      try { return parseJSON(trimmed); } catch(e){ /* fall through */ }
+    }
+    return parseMarkdown(raw);
+  }
+
+  function render(deck){
+    if (!deck.cards.length){
+      showError('Parsed the file, but found zero cards. Check the format against the hint below.');
+      return;
+    }
+    upsertLibraryEntry(deck); // adds to the persistent library, doesn't overwrite previous decks
+    buildReader(deck); // starts fresh at the top — a newly loaded file has no "where you left off"
+  }
+
+  function showError(msg){
+    errMsg.textContent = msg;
+    errMsg.style.display = 'block';
+  }
+  function hideError(){ errMsg.style.display = 'none'; }
+
+  function buildReader(deck, resumePos){
+    main.innerHTML = '';
+    deckTitleEl.childNodes[0].textContent = deck.title + ' ';
+    hcount.textContent = '— ' + deck.cards.length + ' cards —';
+    likedPositions = loadLikes(deck);
+
+    const cover = document.createElement('section');
+    cover.className = 'cover';
+    cover.innerHTML = `
+      <h1>${escapeHtml(deck.title)}</h1>
+      <p>${deck.cards.length} cards, one idea per screen. Scroll to move through the deck.</p>
+      <div class="scroll-hint"><span class="arrow">↓</span> scroll to begin</div>
+    `;
+    main.appendChild(cover);
+
+    currentDeck = deck;
+    cardIndexList = [];
+    // Lazy rendering: each card starts as a lightweight placeholder that
+    // reserves full viewport height (so snap-scroll geometry is exact), and
+    // gets hydrated into a full panel only when it nears the viewport. This
+    // keeps a 500-card deck from building 500 heavy DOM subtrees + running
+    // Mermaid 500 times up front.
+    deck.cards.forEach((card, i) => {
+      const pos = i + 1;
+      const sec = document.createElement('section');
+      sec.className = 'card card-lazy';
+      sec.dataset.pos = pos;
+      sec.innerHTML = '<div class="panel panel-skeleton"><div class="skeleton-line skeleton-tag"></div><div class="skeleton-line skeleton-title"></div><div class="skeleton-line"></div><div class="skeleton-line"></div><div class="skeleton-line skeleton-short"></div></div>';
+      main.appendChild(sec);
+      const item = { pos, title: card.title || '', body: card.body || '', el: sec, card, hydrated: false };
+      cardIndexList.push(item);
+
+      const remaining = deck.cards.length - pos;
+      if (milestoneEvery > 0 && pos % milestoneEvery === 0 && remaining > 0){
+        main.appendChild(buildMilestoneCard(pos, remaining, deck.cards.length));
+      }
+    });
+
+    setupLazyHydration();
+
+    jumpInput.max = String(deck.cards.length);
+    jumpInput.placeholder = 'Go to card # (1–' + deck.cards.length + ')';
+
+    if (window.mermaid && !mermaidInited){
+      try {
+        mermaid.initialize({
+          startOnLoad:false, theme:'base', securityLevel:'loose',
+          themeVariables:{
+            background:'#ffffff', primaryColor:'#eef4ff', primaryTextColor:'#0a0a0a',
+            primaryBorderColor:'#2563eb', lineColor:'#2563eb', secondaryColor:'#fff1e8',
+            tertiaryColor:'#f4f5f7', fontFamily:'Inter, sans-serif'
+          }
+        });
+        mermaidInited = true;
+      } catch(e){ /* mermaid init failed — diagrams degrade to code blocks */ }
+    }
+
+    const end = document.createElement('section');
+    end.className = 'end';
+    end.innerHTML = `
+      <div class="section-tag" style="margin-bottom:16px;">End of deck</div>
+      <h2>That's all ${deck.cards.length} cards.</h2>
+      <p>Scroll back up anytime, or load a different file from the top-right.</p>
+    `;
+    main.appendChild(end);
+
+    uploadScreen.style.display = 'none';
+    readerScreen.style.display = 'block';
+
+    const totalSections = main.querySelectorAll('section').length;
+    let lastHapticPos = 0;
+    function onScroll(){
+      const scrollTop = main.scrollTop;
+      const scrollH = main.scrollHeight - main.clientHeight;
+      const pct = scrollH > 0 ? (scrollTop/scrollH) : 0;
+      railFill.style.height = (pct*100) + '%';
+      const idx = Math.round(scrollTop / main.clientHeight) + 1;
+      const section = main.children[Math.min(Math.max(idx - 1, 0), totalSections - 1)];
+      const pos = section && section.dataset.pos ? parseInt(section.dataset.pos, 10) : null;
+      if (pos) countLabel.textContent = pos + ' / ' + deck.cards.length;
+
+      // a short double-buzz the moment you cross a milestone card's threshold —
+      // fires once per crossing, not on every scroll tick while lingering there.
+      if (hapticsOn && canVibrate && pos && pos % milestoneEvery === 0 && pos !== lastHapticPos){
+        navigator.vibrate([26, 40, 26]);
+        lastHapticPos = pos;
+      }
+
+      // remember where we are in the library, debounced — reopening the app,
+      // or reopening this deck from the library later, resumes right here.
+      clearTimeout(posSaveTimer);
+      posSaveTimer = setTimeout(() => {
+        if (pos) saveLibraryPos(deck.title, pos);
+      }, 250);
+    }
+    main.addEventListener('scroll', onScroll, {passive:true});
+    onScroll();
+
+    // resume where we left off, instantly (no smooth-scroll animation on load)
+    if (resumePos){
+      const item = cardIndexList.find(c => c.pos === resumePos);
+      if (item){
+        ensureHydrated(resumePos);
+        requestAnimationFrame(() => item.el.scrollIntoView({ behavior:'auto', block:'start' }));
+      }
+    }
+  }
+
+  function applyLikeState(sectionEl, pos){
+    const badge = sectionEl.querySelector('.heartBadge');
+    if (badge) badge.classList.toggle('liked', likedPositions.has(pos));
+  }
+
+  function showHeartBurst(sectionEl){
+    const burst = sectionEl.querySelector('.heartBurst');
+    if (!burst) return;
+    burst.classList.remove('burst');
+    // eslint-disable-next-line no-unused-expressions
+    void burst.offsetWidth; // restart animation if double-tapped again quickly
+    burst.classList.add('burst');
+  }
+
+  function toggleLike(pos, opts){
+    opts = opts || {};
+    const item = cardIndexList.find(c => c.pos === pos);
+    if (!item) return;
+    const wasLiked = likedPositions.has(pos);
+    if (opts.forceLike && wasLiked){
+      // double-tap only ever likes (matches Instagram) — never unlikes via double-tap
+    } else if (wasLiked){
+      likedPositions.delete(pos);
+    } else {
+      likedPositions.add(pos);
+    }
+    saveLikes(currentDeck);
+    applyLikeState(item.el, pos);
+    if (!wasLiked && hapticsOn && canVibrate) navigator.vibrate(18);
+    renderLikedList();
+  }
+
+  function renderLikedList(){
+    if (!likedList) return;
+    if (!likedPositions.size){
+      likedList.innerHTML = '<div class="likedEmpty">No liked cards yet — double-tap one.</div>';
+      return;
+    }
+    const items = cardIndexList.filter(c => likedPositions.has(c.pos)).sort((a,b) => a.pos - b.pos);
+    likedList.innerHTML = items.map(it => `
+      <button type="button" class="likedRow" data-pos="${it.pos}">
+        <svg class="heartIcon" viewBox="0 0 24 24"><path d="M12 21s-6.7-4.35-9.3-8.1C1.1 10.5 1.6 7.4 4 5.8c2.1-1.4 4.6-.8 6 1 .5.6.8 1 .9 1.2.1-.2.4-.6.9-1.2 1.4-1.8 3.9-2.4 6-1 2.4 1.6 2.9 4.7 1.3 7.1C18.7 16.65 12 21 12 21z"/></svg>
+        <span class="lrIdx">${String(it.pos).padStart(2,'0')}</span>
+        <span class="lrTitle">${escapeHtml(it.title)}</span>
+      </button>
+    `).join('');
+  }
+
+  likedList && likedList.addEventListener('click', (e) => {
+    const row = e.target.closest('.likedRow');
+    if (row){ scrollToPos(parseInt(row.dataset.pos, 10)); closeJumpPanel(); }
+  });
+
+  // heart-badge single click/tap always toggles (like or unlike)
+  main.addEventListener('click', (e) => {
+    const heartBadge = e.target.closest('.heartBadge');
+    if (heartBadge){
+      toggleLike(parseInt(heartBadge.dataset.pos, 10));
+      const sectionEl = heartBadge.closest('section.card');
+      if (sectionEl && heartBadge.classList.contains('liked')) showHeartBurst(sectionEl);
+    }
+  });
+
+  // double-tap anywhere on a card's panel body always LIKES (never unlikes),
+  // matching Instagram, and plays the burst animation regardless of whether
+  // it was already liked (a re-affirming double-tap still feels satisfying)
+  function likeFromDoubleTap(targetEl){
+    const sectionEl = targetEl.closest && targetEl.closest('section.card');
+    if (!sectionEl || !sectionEl.dataset.pos) return;
+    const pos = parseInt(sectionEl.dataset.pos, 10);
+    if (!likedPositions.has(pos)){
+      likedPositions.add(pos);
+      saveLikes(currentDeck);
+      applyLikeState(sectionEl, pos);
+      renderLikedList();
+      if (hapticsOn && canVibrate) navigator.vibrate(18);
+    }
+    showHeartBurst(sectionEl);
+  }
+
+  // desktop fallback — double-click does the same thing as a mobile double-tap
+  main.addEventListener('dblclick', (e) => {
+    if (e.target.closest('.heartBadge')) return;
+    likeFromDoubleTap(e.target);
+  });
+
+  function buildMilestoneCard(pos, remaining, total){
+    const sec = document.createElement('section');
+    sec.className = 'card milestone';
+    const breakId = 'break-' + pos + '-' + Math.random().toString(36).slice(2, 7);
+    sec.innerHTML = `
+      <div class="panel">
+        <div class="eyebrow"><span class="section-tag">Milestone</span></div>
+        <h2>🎉 ${pos} cards down</h2>
+        <p class="sub">${remaining} to go out of ${total}. Keep scrolling, or take a break.</p>
+        <div class="breakBox" data-break-id="${breakId}">
+          <label>Remind me to resume in</label>
+          <div class="breakRow">
+            <input type="number" class="breakMins" min="1" max="180" value="5">
+            <span>min</span>
+            <button class="primary breakSetBtn" type="button">Set reminder</button>
+          </div>
+          <div class="breakStatus" hidden>
+            <span class="breakCountdown"></span>
+            <button class="breakCancelBtn" type="button">Cancel</button>
+          </div>
+          <div class="breakNote"></div>
+        </div>
+      </div>
+    `;
+    setupBreakCard(sec);
+    return sec;
+  }
+
+  // ---- break timer: local live countdown (always works) + best-effort real
+  // push notification that survives the app being fully closed (only if the
+  // backend in /api is deployed and configured — degrades gracefully if not) ----
+  function setupBreakCard(sectionEl){
+    const minsInput = sectionEl.querySelector('.breakMins');
+    const setBtn = sectionEl.querySelector('.breakSetBtn');
+    const cancelBtn = sectionEl.querySelector('.breakCancelBtn');
+    const formRow = sectionEl.querySelector('.breakRow');
+    const statusEl = sectionEl.querySelector('.breakStatus');
+    const countdownEl = sectionEl.querySelector('.breakCountdown');
+    const noteEl = sectionEl.querySelector('.breakNote');
+
+    let endTime = null, tickTimer = null, localNotifyTimer = null;
+    const baseTitle = document.title;
+
+    function fmt(ms){
+      const s = Math.max(0, Math.ceil(ms / 1000));
+      const m = Math.floor(s / 60);
+      const r = s % 60;
+      return m + ':' + String(r).padStart(2, '0');
+    }
+
+    function tick(){
+      const remaining = endTime - Date.now();
+      if (remaining <= 0){
+        clearInterval(tickTimer);
+        countdownEl.textContent = "Time's up — welcome back.";
+        document.title = baseTitle;
+        return;
+      }
+      countdownEl.textContent = 'Resuming reminder in ' + fmt(remaining);
+      document.title = '(' + fmt(remaining) + ') ' + baseTitle;
+    }
+
+    async function startReminder(){
+      const mins = Math.min(180, Math.max(1, parseInt(minsInput.value, 10) || 5));
+      endTime = Date.now() + mins * 60000;
+      formRow.style.display = 'none';
+      statusEl.hidden = false;
+      noteEl.textContent = '';
+      tick();
+      tickTimer = setInterval(tick, 1000);
+
+      let permission = ('Notification' in window) ? Notification.permission : 'unsupported';
+      if (permission === 'default'){
+        try { permission = await Notification.requestPermission(); } catch(e){ permission = 'denied'; }
+      }
+
+      // Path A — real push via the backend in /api (survives the app being fully
+      // closed, per-platform limits noted in the README). Silently skipped if
+      // the backend isn't deployed/configured, or the browser can't do push
+      // (e.g. iOS Safari not added to the Home Screen).
+      let pushScheduled = false;
+      if (permission === 'granted'){
+        try {
+          pushScheduled = await schedulePushReminder(mins);
+        } catch(e){ pushScheduled = false; }
+      }
+
+      // Path B — local fallback: fires only while this tab/app stays open or
+      // briefly backgrounded. Always armed too, since it costs nothing and
+      // catches the case where push setup silently failed.
+      if (localNotifyTimer) clearTimeout(localNotifyTimer);
+      localNotifyTimer = setTimeout(async () => {
+        if (permission === 'granted'){
+          try {
+            const reg = await navigator.serviceWorker.getRegistration();
+            const opts = { body:'Your break is over — back to the deck.', icon:'icons/icon-192.png', badge:'icons/icon-192.png', tag:'shorts-break', renotify:true };
+            if (reg) await reg.showNotification('Time to resume scrolling', opts);
+            else new Notification('Time to resume scrolling', opts);
+          } catch(e){ /* ignore */ }
+        }
+        if (hapticsOn && canVibrate) navigator.vibrate([70, 50, 70]);
+      }, mins * 60000);
+
+      if (permission === 'denied'){
+        noteEl.textContent = 'Notifications are blocked for this site — the countdown above still works, just watch this tab.';
+      } else if (permission === 'unsupported'){
+        noteEl.textContent = 'This browser has no Notifications API — the countdown above still works, just watch this tab.';
+      } else if (pushScheduled){
+        noteEl.textContent = "You'll get a notification in " + mins + ' min — even if you fully close the app.';
+        noteEl.classList.add('good');
+      } else {
+        noteEl.textContent = 'Reminder set for while the app stays open (backend not connected — see README to enable close-proof delivery).';
+      }
+    }
+
+    setBtn.addEventListener('click', startReminder);
+    cancelBtn.addEventListener('click', () => {
+      clearInterval(tickTimer);
+      clearTimeout(localNotifyTimer);
+      document.title = baseTitle;
+      statusEl.hidden = true;
+      formRow.style.display = 'flex';
+      noteEl.textContent = '';
+    });
+  }
+
+  // ---- Web Push: subscribe + ask the backend to schedule a delayed send ----
+  // VAPID_PUBLIC_KEY is not secret — safe to hardcode client-side. Generate
+  // your own pair (see README) and paste the public half in here.
+  const VAPID_PUBLIC_KEY = 'REPLACE_WITH_YOUR_VAPID_PUBLIC_KEY';
+
+  function urlBase64ToUint8Array(base64String){
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const raw = atob(base64);
+    const arr = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+    return arr;
+  }
+
+  async function getOrCreatePushSubscription(){
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return null;
+    if (!VAPID_PUBLIC_KEY || VAPID_PUBLIC_KEY.startsWith('REPLACE_')) return null;
+
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub){
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+      });
+    }
+    // best-effort register with the backend; ignore failures (backend may not be deployed)
+    try {
+      await fetch('/api/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscription: sub }),
+      });
+    } catch(e){ /* backend not deployed — push still "works" locally via Path B */ }
+    return sub;
+  }
+
+  async function schedulePushReminder(mins){
+    const sub = await getOrCreatePushSubscription();
+    if (!sub) return false;
+    const res = await fetch('/api/schedule-reminder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint: sub.endpoint, minutes: mins }),
+    });
+    return res.ok;
+  }
+
+  if ('serviceWorker' in navigator){
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+
+  milestoneEveryInput.addEventListener('change', () => {
+    milestoneEvery = Math.max(3, Math.min(200, parseInt(milestoneEveryInput.value, 10) || 10));
+    milestoneEveryInput.value = milestoneEvery;
+    localStorage.setItem(MILESTONE_KEY, String(milestoneEvery));
+    if (currentDeck){
+      const lib = loadLibrary();
+      const resume = (lib[currentDeck.title] && lib[currentDeck.title].pos) || 1;
+      buildReader(currentDeck, resume);
+    }
+  });
+
+  hapticsToggle.addEventListener('click', () => {
+    hapticsOn = !hapticsOn;
+    hapticsToggle.classList.toggle('on', hapticsOn);
+    hapticsToggle.setAttribute('aria-checked', String(hapticsOn));
+    localStorage.setItem(HAPTICS_KEY, hapticsOn ? 'on' : 'off');
+    if (hapticsOn && canVibrate) navigator.vibrate(20);
+  });
+
+  // ---- notification permission, as its own explicit setting rather than
+  // only ever being asked implicitly the first time someone hits "Set
+  // reminder" on a milestone card ----
+  function refreshNotifStatus(){
+    if (!('Notification' in window)){
+      notifStatusLabel.textContent = 'Notifications: unsupported here';
+      notifEnableBtn.style.display = 'none';
+      return;
+    }
+    const perm = Notification.permission;
+    if (perm === 'granted'){
+      notifStatusLabel.textContent = 'Notifications: enabled ✓';
+      notifEnableBtn.style.display = 'none';
+    } else if (perm === 'denied'){
+      notifStatusLabel.textContent = 'Notifications: blocked (change in browser site settings)';
+      notifEnableBtn.style.display = 'none';
+    } else {
+      notifStatusLabel.textContent = 'Notifications: not enabled';
+      notifEnableBtn.style.display = 'inline-flex';
+    }
+  }
+  refreshNotifStatus();
+
+  notifEnableBtn.addEventListener('click', async () => {
+    if (!('Notification' in window)) return;
+    try {
+      const perm = await Notification.requestPermission();
+      refreshNotifStatus();
+      if (perm === 'granted'){
+        // set up (or confirm) the push subscription right away, rather than
+        // waiting for the first break-timer click to discover it
+        try { await getOrCreatePushSubscription(); } catch(e){ /* backend may not be deployed — fine */ }
+      }
+    } catch(e){ /* ignore */ }
+  });
+
+  copyPromptBtn.addEventListener('click', async () => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText){
+        await navigator.clipboard.writeText(PROMPT_TEXT);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = PROMPT_TEXT;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      copyPromptBtn.classList.add('copied');
+      setTimeout(() => copyPromptBtn.classList.remove('copied'), 1800);
+    } catch(e){ /* clipboard permission denied or unavailable — silently no-op */ }
+  });
+
+  // ---- jump-to-card + in-deck search ----
+  function scrollToPos(pos){
+    const item = cardIndexList.find(c => c.pos === pos);
+    if (item){
+      ensureHydrated(pos);
+      item.el.scrollIntoView({ behavior:'smooth', block:'start' });
+    }
+  }
+
+  function openJumpPanel(){
+    jumpPanel.classList.add('open');
+    jumpBackdrop.classList.add('open');
+    jumpBtn.classList.add('active');
+    jumpInput.value = '';
+    searchInput.value = '';
+    searchResults.innerHTML = '';
+    refreshNotifStatus(); // permission may have changed via browser UI since last open
+    setTimeout(() => searchInput.focus(), 60);
+  }
+  function closeJumpPanel(){
+    jumpPanel.classList.remove('open');
+    jumpBackdrop.classList.remove('open');
+    jumpBtn.classList.remove('active');
+  }
+  function toggleJumpPanel(){
+    jumpPanel.classList.contains('open') ? closeJumpPanel() : openJumpPanel();
+  }
+
+  function highlightMatch(text, query){
+    if (!query) return escapeHtml(text);
+    const idx = text.toLowerCase().indexOf(query.toLowerCase());
+    if (idx === -1) return escapeHtml(text);
+    return escapeHtml(text.slice(0, idx)) + '<mark>' + escapeHtml(text.slice(idx, idx + query.length)) +
+      '</mark>' + escapeHtml(text.slice(idx + query.length));
+  }
+
+  function runSearch(raw){
+    const query = raw.trim();
+    if (!query){ searchResults.innerHTML = ''; return; }
+    const ql = query.toLowerCase();
+    const matches = cardIndexList.filter(c =>
+      c.title.toLowerCase().includes(ql) || c.body.toLowerCase().includes(ql)
+    ).slice(0, 30);
+
+    if (!matches.length){
+      searchResults.innerHTML = '<div class="searchEmpty">No cards match "' + escapeHtml(query) + '"</div>';
+      return;
+    }
+
+    searchResults.innerHTML = matches.map(m => {
+      const bodyLower = m.body.toLowerCase();
+      const bodyIdx = bodyLower.indexOf(ql);
+      let snippet = m.body;
+      if (bodyIdx > 40) snippet = '…' + m.body.slice(bodyIdx - 30);
+      const titleHtml = highlightMatch(m.title, m.title.toLowerCase().includes(ql) ? query : '');
+      const snippetHtml = highlightMatch(snippet, bodyIdx !== -1 ? query : '');
+      return `<button type="button" class="searchResult" data-pos="${m.pos}">
+        <span class="srIdx">${String(m.pos).padStart(2,'0')}</span>
+        <span class="srBody">
+          <div class="srTitle">${titleHtml}</div>
+          <div class="srSnippet">${snippetHtml}</div>
+        </span>
+      </button>`;
+    }).join('');
+  }
+
+  jumpBtn.addEventListener('click', toggleJumpPanel);
+  jumpBackdrop.addEventListener('click', closeJumpPanel);
+
+  jumpGoBtn.addEventListener('click', () => {
+    const n = parseInt(jumpInput.value, 10);
+    if (n) { scrollToPos(n); closeJumpPanel(); }
+  });
+  jumpInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') jumpGoBtn.click();
+  });
+
+  searchInput.addEventListener('input', () => runSearch(searchInput.value));
+  searchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter'){
+      const first = searchResults.querySelector('.searchResult');
+      if (first){ scrollToPos(parseInt(first.dataset.pos, 10)); closeJumpPanel(); }
+    }
+  });
+  searchResults.addEventListener('click', (e) => {
+    const btn = e.target.closest('.searchResult');
+    if (btn){ scrollToPos(parseInt(btn.dataset.pos, 10)); closeJumpPanel(); }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    const tag = (e.target.tagName || '').toLowerCase();
+    const typing = tag === 'input' || tag === 'textarea';
+    const readerVisible = uploadScreen.style.display === 'none';
+    if (e.key === '/' && !typing && readerVisible){
+      e.preventDefault();
+      openJumpPanel();
+    } else if (e.key === 'Escape'){
+      closeJumpPanel();
+    }
+  });
+
+  function handleRawText(raw){
+    hideError();
+    try{
+      const deck = parseAny(raw);
+      render(deck);
+    } catch(e){
+      showError('Could not parse this file: ' + e.message);
+    }
+  }
+
+  function handleFile(file){
+    const reader = new FileReader();
+    reader.onload = () => handleRawText(reader.result);
+    reader.onerror = () => showError('Could not read that file.');
+    reader.readAsText(file);
+  }
+
+  dropzone.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', (e) => {
+    if (e.target.files[0]) handleFile(e.target.files[0]);
+  });
+  ['dragover','dragenter'].forEach(ev => dropzone.addEventListener(ev, (e) => {
+    e.preventDefault(); dropzone.classList.add('drag');
+  }));
+  ['dragleave','drop'].forEach(ev => dropzone.addEventListener(ev, (e) => {
+    e.preventDefault(); dropzone.classList.remove('drag');
+  }));
+  dropzone.addEventListener('drop', (e) => {
+    const f = e.dataTransfer.files[0];
+    if (f) handleFile(f);
+  });
+
+  renderPasteBtn.addEventListener('click', () => {
+    if (!pasteBox.value.trim()) { showError('Paste something first.'); return; }
+    handleRawText(pasteBox.value);
+  });
+
+  clearBtn.addEventListener('click', () => {
+    clearLibrary();
+    pasteBox.value = '';
+    hideError();
+  });
+
+  swapBtn.addEventListener('click', () => {
+    readerScreen.style.display = 'none';
+    uploadScreen.style.display = 'flex';
+    renderLibrary(); // library persists across "load a different file" — only Clear library wipes it
+  });
+
+  libraryList.addEventListener('click', (e) => {
+    const removeBtn = e.target.closest('.lbRemove');
+    if (removeBtn){
+      e.stopPropagation();
+      removeLibraryEntry(removeBtn.dataset.remove);
+      return;
+    }
+    const row = e.target.closest('.libraryRow');
+    if (row) openLibraryEntry(row.dataset.title);
+  });
+
+  // on first load, show the library on the upload screen (if any), and
+  // auto-resume the most recently opened deck at its saved position
+  renderLibrary();
+  const lastOpened = localStorage.getItem(LAST_OPENED_KEY);
+  if (lastOpened){
+    const lib = loadLibrary();
+    const entry = lib[lastOpened];
+    if (entry){
+      try { buildReader({ title: entry.title, cards: entry.cards }, entry.pos); }
+      catch(e){ /* ignore, show upload screen */ }
+    }
+  }
+
+  // ---- hard zoom lock: pinch-gesture + double-tap, belt-and-braces on top of
+  // the viewport meta / touch-action CSS, since some browsers ignore either
+  // one alone. ----
+
+  // Safari fires a non-standard 'gesturestart'/'gesturechange' event for pinch.
+  ['gesturestart','gesturechange','gestureend'].forEach(ev => {
+    document.addEventListener(ev, (e) => e.preventDefault(), { passive:false });
+  });
+
+  // Block multi-touch pinch on browsers that don't fire gestureevents.
+  document.addEventListener('touchmove', (e) => {
+    if (e.touches && e.touches.length > 1) e.preventDefault();
+  }, { passive:false });
+
+  // Block the double-tap-to-zoom gesture (two quick taps in roughly the same spot) —
+  // and, if those two taps landed on a card, treat it as a "like" (Instagram-style).
+  let lastTouchEnd = 0;
+  let lastTouchX = 0, lastTouchY = 0;
+  let lastTouchTarget = null;
+  document.addEventListener('touchend', (e) => {
+    const now = Date.now();
+    const touch = e.changedTouches && e.changedTouches[0];
+    const x = touch ? touch.clientX : 0;
+    const y = touch ? touch.clientY : 0;
+    const dist = Math.hypot(x - lastTouchX, y - lastTouchY);
+    if (now - lastTouchEnd <= 300 && dist < 30) {
+      e.preventDefault();
+      if (lastTouchTarget && !e.target.closest('.heartBadge') && !e.target.closest('button') && !e.target.closest('input')){
+        likeFromDoubleTap(e.target);
+      }
+    }
+    lastTouchEnd = now;
+    lastTouchX = x; lastTouchY = y;
+    lastTouchTarget = e.target;
+  }, { passive:false });
+
+  // Block ctrl/cmd + wheel zoom on trackpads/desktop, and ctrl/cmd +/- keys.
+  document.addEventListener('wheel', (e) => {
+    if (e.ctrlKey || e.metaKey) e.preventDefault();
+  }, { passive:false });
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && ['+','-','=','0'].includes(e.key)) e.preventDefault();
+  });
+})();
+</script>
+</body>
+</html>
