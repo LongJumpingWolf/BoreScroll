@@ -3948,22 +3948,46 @@ Here is the source document to convert:
   // up to real megabytes, then show the library and auto-resume whatever
   // deck was last open, at its saved position.
   (async function boot(){
-    try { await BoreStorage.migrateFromLocalStorage(); } catch(e){ /* non-fatal — app still works from whatever IS in IDB */ }
-    BoreStorage.requestPersistence();
-    await renderLibrary();
-    const lastOpened = localStorage.getItem(LAST_OPENED_KEY);
-    if (lastOpened){
-      const entry = await BoreStorage.getDeck(lastOpened);
-      if (entry){
-        let changed = false;
-        if (!entry.wrongLedger){ entry.wrongLedger = []; changed = true; }
-        if (!entry.supplements){ entry.supplements = []; changed = true; }
-        if (changed) await BoreStorage.saveDeck(entry);
-        try { await buildReader({ title: entry.title, cards: entry.cards }, entry.pos, { entry, isSupplement:false }); }
-        catch(e){ /* ignore, show upload screen */ }
+    try {
+      try { await BoreStorage.migrateFromLocalStorage(); } catch(e){ /* non-fatal — app still works from whatever IS in IDB */ }
+      BoreStorage.requestPersistence();
+      await renderLibrary();
+      const lastOpened = localStorage.getItem(LAST_OPENED_KEY);
+      if (lastOpened){
+        const entry = await BoreStorage.getDeck(lastOpened);
+        if (entry){
+          let changed = false;
+          if (!entry.wrongLedger){ entry.wrongLedger = []; changed = true; }
+          if (!entry.supplements){ entry.supplements = []; changed = true; }
+          if (changed) await BoreStorage.saveDeck(entry);
+          try { await buildReader({ title: entry.title, cards: entry.cards }, entry.pos, { entry, isSupplement:false }); }
+          catch(e){ /* ignore, show upload screen */ }
+        }
       }
+    } catch(bootErr){
+      showBootError(bootErr);
     }
   })();
+  // If this page and card-maker.html are deployed out of sync, one of them
+  // upgrades the shared IndexedDB database to a newer version, and the
+  // older file then fails to open it at all (VersionError) — every render
+  // hangs off this boot promise, so without this the result is a silent
+  // blank screen. Nothing here is destructive: the fix is redeploying both
+  // files at the same version, never deleting data.
+  function showBootError(err){
+    const isVersion = err && (err.name === 'VersionError' || /version/i.test(err.message||''));
+    document.body.innerHTML = '<div style="min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:24px;background:#16181d;color:#e6e8ec;font-family:Inter,sans-serif;text-align:center;">'+
+      '<div style="max-width:440px;">'+
+        '<div style="font-family:\'IBM Plex Mono\',monospace;font-size:11px;letter-spacing:.1em;color:#e79b93;text-transform:uppercase;margin-bottom:10px;">Could not load</div>'+
+        '<h1 style="font-family:Georgia,serif;font-size:22px;margin:0 0 12px;">Something needs a refresh</h1>'+
+        '<p style="font-size:13.5px;line-height:1.6;color:#b8b3a8;margin:0 0 8px;">'+
+          (isVersion
+            ? 'This page and card-maker.html were deployed at different versions, and your saved data was upgraded by whichever one you opened more recently. Nothing was lost \u2014 redeploy <b>both</b> files from the same build, then reload.'
+            : 'An unexpected error stopped this page from loading its data.') +
+        '</p>'+
+        '<p style="font-family:\'IBM Plex Mono\',monospace;font-size:10.5px;color:#8a8375;margin:14px 0 0;">'+escapeHtml(err && err.message || String(err))+'</p>'+
+      '</div></div>';
+  }
 
   // ---- hard zoom lock: pinch-gesture + double-tap, belt-and-braces on top of
   // the viewport meta / touch-action CSS, since some browsers ignore either
