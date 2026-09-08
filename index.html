@@ -133,6 +133,12 @@
   }
   .libraryHead button:hover{ color:var(--eosin); border-color:var(--eosin-dim); }
   .libraryList{ display:flex; flex-direction:column; gap:8px; max-height:260px; overflow-y:auto; }
+  .storageRow{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:12px;
+    padding-top:12px; border-top:1px solid var(--line); }
+  .storageInfo{ font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--ink-dim); }
+  .gcBtn{ font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--ink-dim); border:1px solid var(--line);
+    border-radius:100px; padding:5px 11px; background:transparent; cursor:pointer; white-space:nowrap; }
+  .gcBtn:hover{ color:var(--eosin); border-color:var(--eosin-dim); }
   .libraryRow{
     display:flex; align-items:center; gap:10px; padding:11px 12px; border-radius:12px;
     background:rgba(255,255,255,0.03); border:1px solid transparent; cursor:pointer;
@@ -765,6 +771,10 @@
         <button type="button" id="clearBtn">Clear library</button>
       </div>
       <div id="libraryList" class="libraryList"></div>
+      <div class="storageRow">
+        <span id="storageInfo" class="storageInfo"></span>
+        <button type="button" id="gcImagesBtn" class="gcBtn" title="Delete images no longer referenced by any card">Clean unused images</button>
+      </div>
     </div>
 
     <div class="promptBlock">
@@ -921,6 +931,282 @@
   <main id="main"></main>
 </div>
 
+<script>
+/* ============================================================================
+   BORESCROLL STORAGE — IndexedDB, replacing the old single localStorage blob.
+
+   Why: localStorage tops out around 5-10MB per origin, and decks embed images
+   as base64 text, which blows through that fast (base64 also inflates raw
+   image bytes by ~33% for nothing). IndexedDB's quota is tied to available
+   disk (commonly hundreds of MB to several GB), stores Blobs natively, and
+   every read/write is async so a big save never blocks the scroll/typing.
+
+   Two object stores:
+     "decks"  -> one record per deck (title, cards, pos, wrongLedger,
+                 supplements, etc.) — everything EXCEPT embedded image bytes.
+     "images" -> one record per embedded image, holding the raw Blob. Keyed
+                 by a composite "<deckTitle>::<tokenKey>" id so the same
+                 short token (img1, img2, ...) can be reused independently
+                 across different decks without colliding.
+
+   Card bodies keep referencing images the same way they always have —
+   ![alt](#imgKey) — nothing about the markdown/authoring format changes.
+   Only WHERE the bytes live and HOW they're fetched changes (async now).
+   ========================================================================= */
+(function (root) {
+  'use strict';
+
+  var DB_NAME = 'boreScrollDB';
+  var DB_VERSION = 1;
+  var dbPromise = null;
+
+  function openDB(){
+    if (dbPromise) return dbPromise;
+    dbPromise = new Promise(function (resolve, reject) {
+      var req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onupgradeneeded = function () {
+        var db = req.result;
+        if (!db.objectStoreNames.contains('decks')) db.createObjectStore('decks', { keyPath: 'title' });
+        if (!db.objectStoreNames.contains('images')) db.createObjectStore('images', { keyPath: 'id' });
+      };
+      req.onsuccess = function () { resolve(req.result); };
+      req.onerror = function () { reject(req.error); };
+    });
+    return dbPromise;
+  }
+  function idbPut(store, value){
+    return openDB().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction(store, 'readwrite');
+        tx.objectStore(store).put(value);
+        tx.oncomplete = function () { resolve(); };
+        tx.onerror = function () { reject(tx.error); };
+      });
+    });
+  }
+  function idbGet(store, key){
+    return openDB().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction(store, 'readonly');
+        var req = tx.objectStore(store).get(key);
+        req.onsuccess = function () { resolve(req.result); };
+        req.onerror = function () { reject(req.error); };
+      });
+    });
+  }
+  function idbGetAll(store){
+    return openDB().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction(store, 'readonly');
+        var req = tx.objectStore(store).getAll();
+        req.onsuccess = function () { resolve(req.result || []); };
+        req.onerror = function () { reject(req.error); };
+      });
+    });
+  }
+  function idbGetAllKeys(store){
+    return openDB().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction(store, 'readonly');
+        var req = tx.objectStore(store).getAllKeys();
+        req.onsuccess = function () { resolve(req.result || []); };
+        req.onerror = function () { reject(req.error); };
+      });
+    });
+  }
+  function idbDelete(store, key){
+    return openDB().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction(store, 'readwrite');
+        tx.objectStore(store).delete(key);
+        tx.oncomplete = function () { resolve(); };
+        tx.onerror = function () { reject(tx.error); };
+      });
+    });
+  }
+
+  /* ---- decks ---- */
+  function listDecks(){ return idbGetAll('decks'); }
+  function getDeck(title){ return idbGet('decks', title); }
+  function saveDeck(entry){
+    entry.updatedAt = Date.now();
+    return idbPut('decks', entry).then(function () { return true; }).catch(function () { return false; });
+  }
+  // Renaming a deck changes its primary key, so it's a delete+reinsert, not a
+  // plain put — and every image that belongs to the old title needs its
+  // composite id (and deckTitle field) moved to the new title too.
+  function renameDeck(oldTitle, newTitle){
+    return getDeck(oldTitle).then(function (entry) {
+      if (!entry || oldTitle === newTitle) return false;
+      return idbGetAll('images').then(function (allImages) {
+        var mine = allImages.filter(function (im) { return im.deckTitle === oldTitle; });
+        var renameImages = mine.reduce(function (p, im) {
+          return p.then(function () {
+            var newId = newTitle + '::' + im.tokenKey;
+            return idbPut('images', { id: newId, tokenKey: im.tokenKey, deckTitle: newTitle, blob: im.blob, type: im.type, width: im.width, height: im.height, createdAt: im.createdAt })
+              .then(function () { return idbDelete('images', im.id); });
+          });
+        }, Promise.resolve());
+        return renameImages.then(function () {
+          entry.title = newTitle;
+          return idbDelete('decks', oldTitle).then(function () { return saveDeck(entry); });
+        });
+      });
+    });
+  }
+  function deleteDeck(title){
+    return idbGetAll('images').then(function (allImages) {
+      var mine = allImages.filter(function (im) { return im.deckTitle === title; });
+      return mine.reduce(function (p, im) { return p.then(function () { return idbDelete('images', im.id); }); }, Promise.resolve());
+    }).then(function () { return idbDelete('decks', title); });
+  }
+  function clearAll(){
+    return openDB().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction(['decks', 'images'], 'readwrite');
+        tx.objectStore('decks').clear();
+        tx.objectStore('images').clear();
+        tx.oncomplete = function () { resolve(); };
+        tx.onerror = function () { reject(tx.error); };
+      });
+    });
+  }
+
+  /* ---- images ---- */
+  // tokenKey is the short id already embedded in card markdown as #imgKey —
+  // unchanged authoring format; only the storage backing it moves to IDB.
+  function imageId(deckTitle, tokenKey){ return deckTitle + '::' + tokenKey; }
+  function saveImage(deckTitle, tokenKey, blob, type, width, height){
+    return idbPut('images', {
+      id: imageId(deckTitle, tokenKey), tokenKey: tokenKey, deckTitle: deckTitle,
+      blob: blob, type: type || blob.type, width: width || null, height: height || null, createdAt: Date.now()
+    });
+  }
+  function getImage(deckTitle, tokenKey){ return idbGet('images', imageId(deckTitle, tokenKey)); }
+  function deleteImage(deckTitle, tokenKey){ return idbDelete('images', imageId(deckTitle, tokenKey)); }
+  function listDeckImageKeys(deckTitle){
+    return idbGetAll('images').then(function (all) {
+      return all.filter(function (im) { return im.deckTitle === deckTitle; }).map(function (im) { return im.tokenKey; });
+    });
+  }
+  // Deletes any stored image no longer referenced by #tokenKey in any of the
+  // deck's cards (mother cards AND supplement cards). Only runs when
+  // explicitly triggered — never automatically — so deleting a reference
+  // doesn't destroy an image you meant to reuse.
+  function gcUnusedImages(entry){
+    var used = new Set();
+    var re = /\]\(#([a-zA-Z0-9_-]+)\)/g;
+    function scan(body){ var m; re.lastIndex = 0; while ((m = re.exec(body || '')) !== null) used.add(m[1]); }
+    (entry.cards || []).forEach(function (c) { scan(c.body); });
+    (entry.supplements || []).forEach(function (s) { (s.cards || []).forEach(function (c) { scan(c.body); }); });
+    return listDeckImageKeys(entry.title).then(function (keys) {
+      var toDelete = keys.filter(function (k) { return !used.has(k); });
+      return toDelete.reduce(function (p, k) { return p.then(function () { return deleteImage(entry.title, k); }); }, Promise.resolve())
+        .then(function () { return toDelete.length; });
+    });
+  }
+
+  /* ---- storage pressure awareness ---- */
+  function formatBytes(n){
+    if (n == null) return '';
+    if (n < 1024) return n + ' B';
+    if (n < 1024*1024) return (n/1024).toFixed(0) + ' KB';
+    if (n < 1024*1024*1024) return (n/(1024*1024)).toFixed(1) + ' MB';
+    return (n/(1024*1024*1024)).toFixed(2) + ' GB';
+  }
+  function estimateStorage(){
+    if (!(root.navigator && root.navigator.storage && root.navigator.storage.estimate)) return Promise.resolve(null);
+    return root.navigator.storage.estimate().catch(function () { return null; });
+  }
+  function requestPersistence(){
+    if (root.navigator && root.navigator.storage && root.navigator.storage.persist){
+      root.navigator.storage.persist().catch(function () {});
+    }
+  }
+
+  /* ---- one-time migration from the old single-blob localStorage format ---- */
+  var MIGRATION_FLAG = 'shorts-reader:idb-migrated-v1';
+  var LEGACY_LIBRARY_KEY = 'shorts-reader:library';
+
+  function dataUrlToBlob(dataUrl){
+    var m = /^data:([^;,]+)?(;base64)?,(.*)$/.exec(dataUrl);
+    if (!m) return null;
+    var mime = m[1] || 'application/octet-stream', isBase64 = !!m[2], data = m[3];
+    if (isBase64){
+      var bin = atob(data), len = bin.length, bytes = new Uint8Array(len);
+      for (var i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+      return new Blob([bytes], { type: mime });
+    }
+    return new Blob([decodeURIComponent(data)], { type: mime });
+  }
+  function measureBlobDims(blob){
+    return new Promise(function (resolve) {
+      try {
+        var url = URL.createObjectURL(blob);
+        var img = new Image();
+        img.onload = function () { URL.revokeObjectURL(url); resolve({ width: img.naturalWidth, height: img.naturalHeight }); };
+        img.onerror = function () { URL.revokeObjectURL(url); resolve({ width: null, height: null }); };
+        img.src = url;
+      } catch (e) { resolve({ width: null, height: null }); }
+    });
+  }
+
+  // Migrates every deck out of the old localStorage blob into IndexedDB, and
+  // every embedded base64 image into a real Blob in the images store. The
+  // old localStorage key is left untouched (never destructively deleted) as
+  // a safety net — this only needs to run once, guarded by MIGRATION_FLAG.
+  function migrateFromLocalStorage(){
+    try { if (root.localStorage.getItem(MIGRATION_FLAG)) return Promise.resolve({ migrated: false }); } catch (e) { return Promise.resolve({ migrated: false }); }
+    var raw;
+    try { raw = root.localStorage.getItem(LEGACY_LIBRARY_KEY); } catch (e) { raw = null; }
+    if (!raw) { try { root.localStorage.setItem(MIGRATION_FLAG, '1'); } catch (e) {} return Promise.resolve({ migrated: false }); }
+    var lib;
+    try { lib = JSON.parse(raw); } catch (e) { lib = null; }
+    if (!lib || typeof lib !== 'object') { try { root.localStorage.setItem(MIGRATION_FLAG, '1'); } catch (e) {} return Promise.resolve({ migrated: false }); }
+
+    var titles = Object.keys(lib);
+    var chain = Promise.resolve();
+    var deckCount = 0, imageCount = 0;
+    titles.forEach(function (title) {
+      chain = chain.then(function () {
+        var entry = lib[title];
+        var images = entry.images || {};
+        var keys = Object.keys(images);
+        var imgChain = Promise.resolve();
+        keys.forEach(function (key) {
+          imgChain = imgChain.then(function () {
+            var dataUrl = images[key];
+            var blob = dataUrlToBlob(dataUrl);
+            if (!blob) return;
+            return measureBlobDims(blob).then(function (dims) {
+              return saveImage(title, key, blob, blob.type, dims.width, dims.height).then(function () { imageCount++; });
+            });
+          });
+        });
+        return imgChain.then(function () {
+          delete entry.images; // bytes now live in the images store
+          entry.title = entry.title || title;
+          return saveDeck(entry).then(function () { deckCount++; });
+        });
+      });
+    });
+    return chain.then(function () {
+      try { root.localStorage.setItem(MIGRATION_FLAG, '1'); } catch (e) {}
+      return { migrated: true, decks: deckCount, images: imageCount };
+    });
+  }
+
+  root.BoreStorage = {
+    openDB: openDB, idbPut: idbPut, idbGet: idbGet, idbGetAll: idbGetAll, idbGetAllKeys: idbGetAllKeys, idbDelete: idbDelete,
+    listDecks: listDecks, getDeck: getDeck, saveDeck: saveDeck, renameDeck: renameDeck, deleteDeck: deleteDeck, clearAll: clearAll,
+    saveImage: saveImage, getImage: getImage, deleteImage: deleteImage, listDeckImageKeys: listDeckImageKeys, gcUnusedImages: gcUnusedImages,
+    formatBytes: formatBytes, estimateStorage: estimateStorage, requestPersistence: requestPersistence,
+    migrateFromLocalStorage: migrateFromLocalStorage, dataUrlToBlob: dataUrlToBlob, measureBlobDims: measureBlobDims,
+    _MIGRATION_FLAG: MIGRATION_FLAG, _LEGACY_LIBRARY_KEY: LEGACY_LIBRARY_KEY
+  };
+})(typeof window !== 'undefined' ? window : this);
+
+</script>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <script>
 /* ============================================================================
@@ -1023,6 +1309,8 @@
   const clearBtn = document.getElementById('clearBtn');
   const libraryBlock = document.getElementById('libraryBlock');
   const libraryList = document.getElementById('libraryList');
+  const storageInfoEl = document.getElementById('storageInfo');
+  const gcImagesBtn = document.getElementById('gcImagesBtn');
   const errMsg = document.getElementById('errMsg');
   const main = document.getElementById('main');
   const deckTitleEl = document.getElementById('deckTitle');
@@ -1156,9 +1444,37 @@
     '</div>';
   }
 
+  // Images embedded via the card editor are referenced in markdown as
+  // #tokenKey (unchanged authoring format) and rendered with that literal
+  // src by formatBody — resolving the real bytes is a separate async step
+  // since they now live in IndexedDB, not inline as base64. This walks a
+  // freshly-inserted card subtree and swaps #key placeholders for real
+  // object URLs, with an in-memory cache so repeat renders of the same card
+  // don't re-fetch or re-create object URLs every time.
+  const imgUrlCache = new Map(); // "deckTitle::key" -> objectURL string | null
+  async function resolveCardImages(rootEl, deckTitle){
+    if (!rootEl || !deckTitle) return;
+    const imgs = rootEl.querySelectorAll('img[src^="#"]');
+    for (const imgEl of imgs){
+      const key = imgEl.getAttribute('src').slice(1);
+      if (!key) continue;
+      const cacheKey = deckTitle + '::' + key;
+      let url = imgUrlCache.has(cacheKey) ? imgUrlCache.get(cacheKey) : undefined;
+      if (url === undefined){
+        try {
+          const rec = await BoreStorage.getImage(deckTitle, key);
+          url = (rec && rec.blob) ? URL.createObjectURL(rec.blob) : null;
+        } catch(e){ url = null; }
+        imgUrlCache.set(cacheKey, url);
+      }
+      if (url){ imgEl.src = url; }
+      else { const fig = imgEl.closest('figure'); if (fig) fig.style.display = 'none'; }
+    }
+  }
+
   // Hydrate a placeholder card section into a real panel, once. Runs Mermaid
   // for that card's diagrams (if any) lazily, only when it comes into view.
-  function hydrateCard(item){
+  async function hydrateCard(item){
     if (!item || item.hydrated) return;
     item.hydrated = true;
     item.el.classList.remove('card-lazy');
@@ -1168,12 +1484,13 @@
     if (mermaids.length && window.mermaid && mermaidInited){
       try { mermaid.run({ nodes: mermaids }); } catch(e){ /* diagram lib unavailable — code block remains */ }
     }
+    await resolveCardImages(item.el, currentEntry ? currentEntry.title : null);
   }
 
   // Re-render just a hydrated card's body + flag badge in place (no full panel
   // rebuild, so heart-badge listeners and scroll position are untouched). Used
   // when the study/cram mode changes, or right after a grade updates flags.
-  function reRenderCardBody(item){
+  async function reRenderCardBody(item){
     if (!item || !item.hydrated) return;
     if (item.pos === editingPos) return; // never clobber an in-progress inline edit
     const bodyEl = item.el.querySelector('.body');
@@ -1189,8 +1506,9 @@
     if (mermaids.length && window.mermaid && mermaidInited){
       try { mermaid.run({ nodes: mermaids }); } catch(e){ /* diagram lib unavailable */ }
     }
+    await resolveCardImages(item.el, currentEntry ? currentEntry.title : null);
   }
-  function reRenderAllHydrated(){ cardIndexList.forEach(reRenderCardBody); }
+  function reRenderAllHydrated(){ cardIndexList.forEach(item => { reRenderCardBody(item); }); }
 
   // IntersectionObserver-driven hydration: hydrate any card within ~2 screens
   // of the viewport. Also proactively hydrates the immediate neighbours of the
@@ -1199,7 +1517,7 @@
     if (hydrationObserver){ hydrationObserver.disconnect(); }
     if (!('IntersectionObserver' in window)){
       // No IO (very old browser) — hydrate everything up front, original behavior.
-      cardIndexList.forEach(hydrateCard);
+      cardIndexList.forEach(item => { hydrateCard(item); });
       return;
     }
     hydrationObserver = new IntersectionObserver((entries) => {
@@ -1216,10 +1534,10 @@
 
   // Ensure a specific card (and its neighbours) are hydrated right now — used
   // before jumping/scrolling to a card so it's never a skeleton on arrival.
-  function ensureHydrated(pos){
+  async function ensureHydrated(pos){
     for (let p = pos - 1; p <= pos + 1; p++){
       const item = cardIndexList.find(c => c.pos === p);
-      if (item) hydrateCard(item);
+      if (item) await hydrateCard(item);
     }
   }
 
@@ -1250,68 +1568,47 @@
     hapticsToggle.title = 'This browser has no Vibration API (all iOS Safari, some desktop) — toggle has no effect here.';
   }
 
-  const LIBRARY_KEY = 'shorts-reader:library';
-  const LAST_OPENED_KEY = 'shorts-reader:last-opened';
+  const LAST_OPENED_KEY = 'shorts-reader:last-opened'; // tiny pointer, stays in localStorage — trivial size, not deck data
   let posSaveTimer = null;
 
-  function loadLibrary(){
-    try {
-      const raw = localStorage.getItem(LIBRARY_KEY);
-      return raw ? JSON.parse(raw) : {};
-    } catch(e){ return {}; }
-  }
-  function saveLibrary(lib){
-    try { localStorage.setItem(LIBRARY_KEY, JSON.stringify(lib)); } catch(e){ /* storage full — ignore, non-fatal */ }
-  }
-  function upsertLibraryEntry(deck){
-    const lib = loadLibrary();
-    const existing = lib[deck.title];
-    lib[deck.title] = {
+  async function upsertLibraryEntry(deck){
+    const existing = await BoreStorage.getDeck(deck.title);
+    const entry = {
       title: deck.title,
       cards: deck.cards,
       pos: existing ? existing.pos : 1,
       addedAt: existing ? existing.addedAt : Date.now(),
       updatedAt: Date.now(),
-      images: existing && existing.images ? existing.images : {},
       wrongLedger: existing && existing.wrongLedger ? existing.wrongLedger : [],
       supplements: existing && existing.supplements ? existing.supplements : [],
     };
-    saveLibrary(lib);
+    await BoreStorage.saveDeck(entry);
     localStorage.setItem(LAST_OPENED_KEY, deck.title);
-    return lib[deck.title];
-  }
-  // Fetch the persisted library entry for a deck title, migrating in the
-  // occlusion fields (images/wrongLedger/supplements) for decks saved before
-  // this feature existed. Creates the entry if it's missing entirely (e.g. a
-  // deck opened straight from a pasted/uploaded file that hasn't been through
-  // upsertLibraryEntry yet in this session).
-  function getOrCreateEntry(deck){
-    const lib = loadLibrary();
-    let entry = lib[deck.title];
-    let changed = false;
-    if (!entry){
-      entry = { title: deck.title, cards: deck.cards, pos:1, addedAt:Date.now(), updatedAt:Date.now(),
-        images:{}, wrongLedger:[], supplements:[] };
-      lib[deck.title] = entry; changed = true;
-    } else {
-      if (!entry.images){ entry.images = {}; changed = true; }
-      if (!entry.wrongLedger){ entry.wrongLedger = []; changed = true; }
-      if (!entry.supplements){ entry.supplements = []; changed = true; }
-    }
-    if (changed) saveLibrary(lib);
     return entry;
   }
-  function persistEntry(entry){
-    const lib = loadLibrary();
-    lib[entry.title] = entry;
-    saveLibrary(lib);
+  // Fetch the persisted entry for a deck title, migrating in the occlusion
+  // fields (wrongLedger/supplements) for decks saved before that feature
+  // existed. Creates the entry if it's missing entirely (e.g. a deck opened
+  // straight from a pasted/uploaded file that hasn't been saved yet).
+  async function getOrCreateEntry(deck){
+    let entry = await BoreStorage.getDeck(deck.title);
+    if (!entry){
+      entry = { title: deck.title, cards: deck.cards, pos:1, addedAt:Date.now(), updatedAt:Date.now(), wrongLedger:[], supplements:[] };
+      await BoreStorage.saveDeck(entry);
+    } else {
+      let changed = false;
+      if (!entry.wrongLedger){ entry.wrongLedger = []; changed = true; }
+      if (!entry.supplements){ entry.supplements = []; changed = true; }
+      if (changed) await BoreStorage.saveDeck(entry);
+    }
+    return entry;
   }
-  function saveLibraryPos(deckTitle, pos){
-    const lib = loadLibrary();
-    if (!lib[deckTitle]) return;
-    lib[deckTitle].pos = pos;
-    lib[deckTitle].updatedAt = Date.now();
-    saveLibrary(lib);
+  async function persistEntry(entry){ await BoreStorage.saveDeck(entry); }
+  async function saveLibraryPos(deckTitle, pos){
+    const entry = await BoreStorage.getDeck(deckTitle);
+    if (!entry) return;
+    entry.pos = pos;
+    await BoreStorage.saveDeck(entry);
   }
   function relativeTime(ts){
     const diff = Date.now() - ts;
@@ -1324,9 +1621,8 @@
     if (days < 30) return days + 'd ago';
     return new Date(ts).toLocaleDateString();
   }
-  function renderLibrary(){
-    const lib = loadLibrary();
-    const entries = Object.values(lib).sort((a,b) => b.updatedAt - a.updatedAt);
+  async function renderLibrary(){
+    const entries = (await BoreStorage.listDecks()).sort((a,b) => b.updatedAt - a.updatedAt);
     if (!entries.length){
       libraryBlock.hidden = true;
       return;
@@ -1354,40 +1650,44 @@
       ${suppRows}
     `;
     }).join('');
+    updateStorageInfo();
   }
-  function openLibraryEntry(title){
-    const lib = loadLibrary();
-    const entry = lib[title];
+  async function openLibraryEntry(title){
+    const entry = await BoreStorage.getDeck(title);
     if (!entry) return;
     let changed = false;
-    if (!entry.images){ entry.images = {}; changed = true; }
     if (!entry.wrongLedger){ entry.wrongLedger = []; changed = true; }
     if (!entry.supplements){ entry.supplements = []; changed = true; }
-    if (changed) saveLibrary(lib);
+    if (changed) await BoreStorage.saveDeck(entry);
     localStorage.setItem(LAST_OPENED_KEY, title);
-    buildReader({ title: entry.title, cards: entry.cards }, entry.pos, { entry, isSupplement:false });
+    await buildReader({ title: entry.title, cards: entry.cards }, entry.pos, { entry, isSupplement:false });
   }
   // Open a supplement — a mistakes-only deck attached to its mother, with no
   // separate library entry of its own ("without the need of creating new
   // folders"). Flags/wrong-ledger checks still resolve against the mother.
-  function openSupplement(motherEntry, supp){
+  async function openSupplement(motherEntry, supp){
     const cards = (supp.cards||[]).map((sc, i) => ({
       idx: i + 1, tag: sc.tag || '', title: sc.title || '', body: sc.body || '',
       id: sc.id, srcCardId: sc.srcCardId
     }));
-    buildReader({ title: supp.name + ' \u2014 ' + motherEntry.title, cards }, 1, { entry: motherEntry, isSupplement:true });
+    await buildReader({ title: supp.name + ' \u2014 ' + motherEntry.title, cards }, 1, { entry: motherEntry, isSupplement:true });
   }
-  function removeLibraryEntry(title){
-    const lib = loadLibrary();
-    delete lib[title];
-    saveLibrary(lib);
+  async function removeLibraryEntry(title){
+    await BoreStorage.deleteDeck(title); // cascades to that deck's images automatically
     if (localStorage.getItem(LAST_OPENED_KEY) === title) localStorage.removeItem(LAST_OPENED_KEY);
-    renderLibrary();
+    await renderLibrary();
   }
-  function clearLibrary(){
-    localStorage.removeItem(LIBRARY_KEY);
+  async function clearLibrary(){
+    await BoreStorage.clearAll();
     localStorage.removeItem(LAST_OPENED_KEY);
-    renderLibrary();
+    await renderLibrary();
+  }
+  function formatBytes(n){ return BoreStorage.formatBytes(n); }
+  async function updateStorageInfo(){
+    const est = await BoreStorage.estimateStorage();
+    if (est && est.usage != null && est.quota != null && storageInfoEl){
+      storageInfoEl.textContent = `${formatBytes(est.usage)} used of ~${formatBytes(est.quota)} available`;
+    }
   }
 
   const PROMPT_TEXT = `You are converting a long source document into "Shorts" — short, scrollable
@@ -1720,11 +2020,14 @@ Here is the source document to convert:
       if (fig) return '<div class="fig-ref" contenteditable="false">\uD83D\uDCD6 See '+escapeHtml(fig[1])+' in the textbook</div>';
       const im = c.match(/^!\[([^\]]*)\]\((\S+?)\)$/);
       if (im){
-        const alt=im[1].trim(); let url=im[2], token=url;
-        if (/^data:/.test(url)){ const key='img'+(Object.keys(images).length+1); images[key]=url; token='#'+key; }
-        const full = token.charAt(0)==='#' ? (images[token.slice(1)]||url) : url;
+        const alt=im[1].trim(); const url=im[2];
+        // Just pass the reference straight through as both src and
+        // data-token: a #tokenKey shows as-is here and gets resolved to a
+        // real IndexedDB-backed object URL by the async resolveCardImages()
+        // pass right after insertion; a data:/http(s) URL already displays
+        // natively with no resolution step needed.
         const cap = alt ? '<figcaption contenteditable="false">'+escapeHtml(alt)+'</figcaption>' : '';
-        return '<figure contenteditable="false" data-token="'+escapeHtml(token)+'"><img src="'+escapeHtml(full)+'" alt="'+escapeHtml(alt)+'">'+cap+'</figure>';
+        return '<figure contenteditable="false" data-token="'+escapeHtml(url)+'"><img src="'+escapeHtml(url)+'" alt="'+escapeHtml(alt)+'">'+cap+'</figure>';
       }
       if (/^\s*([-*_])(?:\s*\1){2,}\s*$/.test(c)) return '<hr>';
       const ls = c.split('\n').filter(l=>l.trim().length);
@@ -1808,12 +2111,14 @@ Here is the source document to convert:
     const items = Array.prototype.slice.call(node.children).filter(c=>c.tagName.toLowerCase()==='li');
     return items.map((li,i) => (type==='ol'?(i+1)+'. ':'- ')+edInlineNodeMd(li, images)).join('\n');
   }
-  function edFigureMd(node, images){
+  function edFigureMd(node){
     const img = node.querySelector('img'); if (!img) return '';
     const cap = node.querySelector('figcaption'), alt = cap?cap.textContent.trim():(img.getAttribute('alt')||'');
-    const token = node.getAttribute('data-token')||img.getAttribute('src')||'';
-    const url = token.charAt(0)==='#' ? (images[token.slice(1)]||img.getAttribute('src')||token) : token;
-    return '!['+alt+']('+url+')';
+    // data-token is set once at insertion time and never touched by the
+    // display-time image resolver (which only ever rewrites img.src), so
+    // it's always the canonical reference to save — #tokenKey or a real url.
+    const token = node.getAttribute('data-token') || img.getAttribute('src') || '';
+    return '!['+alt+']('+token+')';
   }
   function edTableMd(node, images){
     const headCells = node.querySelectorAll('thead th');
@@ -1880,13 +2185,13 @@ Here is the source document to convert:
     return parseMarkdown(raw);
   }
 
-  function render(deck){
+  async function render(deck){
     if (!deck.cards.length){
       showError('Parsed the file, but found zero cards. Check the format against the hint below.');
       return;
     }
-    const entry = upsertLibraryEntry(deck); // adds to the persistent library, doesn't overwrite previous decks
-    buildReader(deck, 1, { entry, isSupplement:false }); // starts fresh at the top — a newly loaded file has no "where you left off"
+    const entry = await upsertLibraryEntry(deck); // adds to the persistent library, doesn't overwrite previous decks
+    await buildReader(deck, 1, { entry, isSupplement:false }); // starts fresh at the top — a newly loaded file has no "where you left off"
   }
 
   function showError(msg){
@@ -1895,12 +2200,12 @@ Here is the source document to convert:
   }
   function hideError(){ errMsg.style.display = 'none'; }
 
-  function buildReader(deck, resumePos, entryCtx){
+  async function buildReader(deck, resumePos, entryCtx){
     entryCtx = entryCtx || {};
     // if cram was running on whatever deck was open before, save its progress
     // so it can be resumed later rather than silently discarding it
     if (readerMode === 'cram' && cram && currentDeck) persistCramState();
-    currentEntry = entryCtx.entry || getOrCreateEntry(deck);
+    currentEntry = entryCtx.entry || await getOrCreateEntry(deck);
     isSupplementView = !!entryCtx.isSupplement;
     // opening any deck ends whatever session/cram/edit was running on the previous one
     readerMode = 'read'; session = null; graderKey = null; sessionSupplement = null;
@@ -2135,7 +2440,7 @@ Here is the source document to convert:
   function lockMainScroll(){ mainScrollLockedValue = main.style.overflowY || ''; main.style.overflowY = 'hidden'; }
   function unlockMainScroll(){ main.style.overflowY = mainScrollLockedValue || ''; mainScrollLockedValue = null; }
 
-  function openCardEditor(pos){
+  async function openCardEditor(pos){
     if (editingPos !== null) return; // finish/cancel the current edit first
     const item = cardIndexList.find(c => c.pos === pos);
     if (!item) return;
@@ -2146,11 +2451,11 @@ Here is the source document to convert:
     ceNum.textContent = pos + ' / ' + currentDeck.cards.length;
     ceTag.value = item.card.tag ? String(item.card.tag) : '';
     ceCardTitle.textContent = item.card.title || '';
-    const images = currentEntry.images || (currentEntry.images = {});
-    ceCardBody.innerHTML = mdToEditHtml(item.card.body || '', engineCard(item.card).id, currentEntry, images);
+    ceCardBody.innerHTML = mdToEditHtml(item.card.body || '', engineCard(item.card).id, currentEntry);
     ceCardBody.style.display = ''; ceMdArea.style.display = 'none';
     editingBodyEl = ceCardBody;
     updateCeModeSwitch();
+    await resolveCardImages(ceCardBody, currentEntry.title);
 
     lockMainScroll();
     cardEditorScreen.classList.add('show');
@@ -2253,38 +2558,57 @@ Here is the source document to convert:
   // the editable surface and the saved markdown only ever carry the token.
   function pickCeImage(){
     const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*';
-    input.onchange = () => {
-      const f = input.files[0]; if (!f) return;
-      const r = new FileReader();
-      r.onload = () => { ceDownscale(r.result, f.type, (url) => embedCeImage(url, (f.name||'image').replace(/\.[a-z0-9]+$/i,''))); };
-      r.readAsDataURL(f);
-    };
+    input.onchange = () => { const f = input.files[0]; if (f) embedCeImageFile(f); };
     input.click();
   }
-  function ceDownscale(dataUrl, type, cb){
-    const approx = Math.ceil(dataUrl.length * 0.75);
-    if (approx <= 700*1024){ cb(dataUrl); return; }
-    const img = new Image();
-    img.onload = () => {
-      const s = Math.min(1, 1280/img.naturalWidth), w = Math.round(img.naturalWidth*s), h = Math.round(img.naturalHeight*s);
-      try { const cv = document.createElement('canvas'); cv.width=w; cv.height=h; cv.getContext('2d').drawImage(img,0,0,w,h);
-        const out = cv.toDataURL(type==='image/png'?'image/png':'image/jpeg', 0.82); cb(out.length < dataUrl.length ? out : dataUrl);
-      } catch(e){ cb(dataUrl); }
-    };
-    img.onerror = () => cb(dataUrl);
-    img.src = dataUrl;
-  }
-  function embedCeImage(dataUrl, name){
-    const images = currentEntry.images || (currentEntry.images = {});
-    const key = 'img' + (Object.keys(images).length + 1);
-    images[key] = dataUrl;
-    if (ceEditMode === 'md'){ edInsertMd('![' + (name||'image') + '](#' + key + ')\n'); }
-    else {
-      const fig = document.createElement('figure'); fig.setAttribute('contenteditable','false'); fig.setAttribute('data-token','#'+key);
-      const im = document.createElement('img'); im.src = dataUrl; im.alt = name || 'image'; fig.appendChild(im);
-      if (name){ const fc = document.createElement('figcaption'); fc.setAttribute('contenteditable','false'); fc.textContent = name; fig.appendChild(fc); }
-      edInsertNodeAtCaret(fig);
+  // Lossless where practical: JPEG/PNG under ~700KB pass through with their
+  // original bytes completely untouched — no re-encoding, no quality loss.
+  // Anything larger is downscaled to a reasonable max dimension via canvas;
+  // other formats are decoded once and re-encoded as PNG (still lossless,
+  // just a container change). Mirrors the same approach used elsewhere for
+  // image handling in this project.
+  async function ceProcessImageFile(file){
+    const type = (file.type || '').toLowerCase();
+    const isJpegPng = type === 'image/jpeg' || type === 'image/jpg' || type === 'image/png';
+    if (isJpegPng && file.size <= 700*1024){
+      let width = null, height = null;
+      try { const bmp = await createImageBitmap(file); width = bmp.width; height = bmp.height; if (bmp.close) bmp.close(); } catch(e){}
+      return { blob: file, type: file.type || (type==='image/jpg'?'image/jpeg':type), width, height };
     }
+    try {
+      const bmp = await createImageBitmap(file);
+      const maxDim = 1280;
+      const scale = Math.min(1, maxDim / Math.max(bmp.width, bmp.height));
+      const w = Math.max(1, Math.round(bmp.width * scale)), h = Math.max(1, Math.round(bmp.height * scale));
+      const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(bmp, 0, 0, w, h);
+      if (bmp.close) bmp.close();
+      const outType = isJpegPng ? (type==='image/jpg'?'image/jpeg':type) : 'image/png';
+      const quality = outType === 'image/jpeg' ? 0.86 : undefined;
+      const outBlob = await new Promise(res => canvas.toBlob(res, outType, quality));
+      return outBlob ? { blob: outBlob, type: outType, width: w, height: h } : { blob: file, type: file.type, width: w, height: h };
+    } catch(e){
+      return { blob: file, type: file.type, width: null, height: null };
+    }
+  }
+  function ceMakeImageKey(){ return 'img_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,7); }
+  async function embedCeImageFile(file){
+    if (!file || !currentEntry) return;
+    try {
+      const { blob, type, width, height } = await ceProcessImageFile(file);
+      const key = ceMakeImageKey();
+      await BoreStorage.saveImage(currentEntry.title, key, blob, type, width, height);
+      const name = (file.name || 'image').replace(/\.[a-z0-9]+$/i, '');
+      await embedCeImageToken(key, name);
+    } catch(e){ /* image failed to save — leave the editor untouched rather than insert a dead reference */ }
+  }
+  async function embedCeImageToken(key, name){
+    if (ceEditMode === 'md'){ edInsertMd('![' + (name||'image') + '](#' + key + ')\n'); return; }
+    const fig = document.createElement('figure'); fig.setAttribute('contenteditable','false'); fig.setAttribute('data-token','#'+key);
+    const im = document.createElement('img'); im.src = '#' + key; im.alt = name || 'image'; fig.appendChild(im);
+    if (name){ const fc = document.createElement('figcaption'); fc.setAttribute('contenteditable','false'); fc.textContent = name; fig.appendChild(fc); }
+    edInsertNodeAtCaret(fig);
+    await resolveCardImages(ceCardBody, currentEntry.title); // resolve the just-inserted #key to a real blob URL
   }
 
   function dispatchCeCmd(cmd){
@@ -2318,42 +2642,42 @@ Here is the source document to convert:
   function updateCeModeSwitch(){
     document.querySelectorAll('#ceModeSwitch button').forEach(b => b.classList.toggle('on', b.dataset.em === ceEditMode));
   }
-  document.getElementById('ceModeSwitch').addEventListener('click', (e) => {
+  document.getElementById('ceModeSwitch').addEventListener('click', async (e) => {
     const b = e.target.closest('button'); if (!b || editingPos === null) return;
     const target = b.dataset.em; if (target === ceEditMode) return;
-    const images = currentEntry.images || (currentEntry.images = {});
     if (target === 'md'){
-      const md = editHtmlToMd(ceCardBody, images);
+      const md = editHtmlToMd(ceCardBody);
       ceMdArea.value = md;
       ceCardBody.style.display = 'none'; ceMdArea.style.display = '';
       editingBodyEl = null; hideEdFloatbar();
     } else {
       const item = cardIndexList.find(c => c.pos === editingPos);
       const cardId = item ? engineCard(item.card).id : 'c0';
-      ceCardBody.innerHTML = mdToEditHtml(ceMdArea.value, cardId, currentEntry, images);
+      ceCardBody.innerHTML = mdToEditHtml(ceMdArea.value, cardId, currentEntry);
       ceMdArea.style.display = 'none'; ceCardBody.style.display = '';
       editingBodyEl = ceCardBody;
+      await resolveCardImages(ceCardBody, currentEntry.title);
     }
     ceEditMode = target;
     updateCeModeSwitch();
   });
 
-  function saveCardEditor(){
+  async function saveCardEditor(){
     if (editingPos === null) return;
     const item = cardIndexList.find(c => c.pos === editingPos);
     if (!item) { closeCardEditor(); return; }
-    const images = currentEntry.images || (currentEntry.images = {});
     item.card.title = ceCardTitle.textContent.trim();
     item.card.tag = ceTag.value.trim();
-    item.card.body = ceEditMode === 'md' ? ceMdArea.value : editHtmlToMd(ceCardBody, images);
+    item.card.body = ceEditMode === 'md' ? ceMdArea.value : editHtmlToMd(ceCardBody);
     item.title = item.card.title; item.body = item.card.body;
-    persistEntry(currentEntry);
+    await persistEntry(currentEntry);
     // rebuild the feed panel from the updated card data so read mode reflects
     // the edit (flags, heart badge, and formatting all recomputed cleanly)
     item.el.innerHTML = cardPanelHTML(item.card, item.pos);
     applyLikeState(item.el, item.pos);
     const mermaids = item.el.querySelectorAll('.mermaid');
     if (mermaids.length && window.mermaid && mermaidInited){ try { mermaid.run({ nodes: mermaids }); } catch(e){} }
+    await resolveCardImages(item.el, currentEntry.title);
     closeCardEditor();
   }
   function cancelCardEditor(){ closeCardEditor(); }
@@ -3081,13 +3405,13 @@ Here is the source document to convert:
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
 
-  milestoneEveryInput.addEventListener('change', () => {
+  milestoneEveryInput.addEventListener('change', async () => {
     milestoneEvery = Math.max(3, Math.min(200, parseInt(milestoneEveryInput.value, 10) || 10));
     milestoneEveryInput.value = milestoneEvery;
     localStorage.setItem(MILESTONE_KEY, String(milestoneEvery));
     if (currentDeck){
-      const resume = isSupplementView ? 1 : ((loadLibrary()[currentDeck.title] && loadLibrary()[currentDeck.title].pos) || 1);
-      buildReader(currentDeck, resume, { entry: currentEntry, isSupplement: isSupplementView });
+      const resume = isSupplementView ? 1 : (currentPos || 1);
+      await buildReader(currentDeck, resume, { entry: currentEntry, isSupplement: isSupplementView });
     }
   });
 
@@ -3292,54 +3616,68 @@ Here is the source document to convert:
     handleRawText(pasteBox.value);
   });
 
-  clearBtn.addEventListener('click', () => {
-    clearLibrary();
+  clearBtn.addEventListener('click', async () => {
+    if (!confirm('Clear your entire library? This deletes every saved deck and embedded image. This cannot be undone.')) return;
+    await clearLibrary();
     pasteBox.value = '';
     hideError();
   });
 
-  swapBtn.addEventListener('click', () => {
-    readerScreen.style.display = 'none';
-    uploadScreen.style.display = 'flex';
-    renderLibrary(); // library persists across "load a different file" — only Clear library wipes it
+  if (gcImagesBtn) gcImagesBtn.addEventListener('click', async () => {
+    if (!confirm('Delete images that are no longer referenced by any card in any deck (including supplements)? This cannot be undone.')) return;
+    const decks = await BoreStorage.listDecks();
+    let total = 0;
+    for (const entry of decks){ total += await BoreStorage.gcUnusedImages(entry); }
+    alert(total ? `Removed ${total} unused image${total===1?'':'s'}.` : 'No unused images found.');
+    updateStorageInfo();
   });
 
-  libraryList.addEventListener('click', (e) => {
+  swapBtn.addEventListener('click', async () => {
+    readerScreen.style.display = 'none';
+    uploadScreen.style.display = 'flex';
+    await renderLibrary(); // library persists across "load a different file" — only Clear library wipes it
+  });
+
+  libraryList.addEventListener('click', async (e) => {
     const removeBtn = e.target.closest('.lbRemove');
     if (removeBtn){
       e.stopPropagation();
-      removeLibraryEntry(removeBtn.dataset.remove);
+      await removeLibraryEntry(removeBtn.dataset.remove);
       return;
     }
     const suppRow = e.target.closest('.libSuppRow');
     if (suppRow){
-      const lib = loadLibrary();
-      const entry = lib[suppRow.dataset.suppTitle];
+      const entry = await BoreStorage.getDeck(suppRow.dataset.suppTitle);
       const supp = entry && entry.supplements && entry.supplements[parseInt(suppRow.dataset.suppIdx, 10)];
-      if (entry && supp) openSupplement(entry, supp);
+      if (entry && supp) await openSupplement(entry, supp);
       return;
     }
     const row = e.target.closest('.libraryRow');
-    if (row) openLibraryEntry(row.dataset.title);
+    if (row) await openLibraryEntry(row.dataset.title);
   });
 
-  // on first load, show the library on the upload screen (if any), and
-  // auto-resume the most recently opened deck at its saved position
-  renderLibrary();
-  const lastOpened = localStorage.getItem(LAST_OPENED_KEY);
-  if (lastOpened){
-    const lib = loadLibrary();
-    const entry = lib[lastOpened];
-    if (entry){
-      let changed = false;
-      if (!entry.images){ entry.images = {}; changed = true; }
-      if (!entry.wrongLedger){ entry.wrongLedger = []; changed = true; }
-      if (!entry.supplements){ entry.supplements = []; changed = true; }
-      if (changed) saveLibrary(lib);
-      try { buildReader({ title: entry.title, cards: entry.cards }, entry.pos, { entry, isSupplement:false }); }
-      catch(e){ /* ignore, show upload screen */ }
+  // On first load: migrate any pre-existing localStorage library into
+  // IndexedDB (one-time, non-destructive — the old data is left in place),
+  // ask the browser not to evict this origin's data now that images can add
+  // up to real megabytes, then show the library and auto-resume whatever
+  // deck was last open, at its saved position.
+  (async function boot(){
+    try { await BoreStorage.migrateFromLocalStorage(); } catch(e){ /* non-fatal — app still works from whatever IS in IDB */ }
+    BoreStorage.requestPersistence();
+    await renderLibrary();
+    const lastOpened = localStorage.getItem(LAST_OPENED_KEY);
+    if (lastOpened){
+      const entry = await BoreStorage.getDeck(lastOpened);
+      if (entry){
+        let changed = false;
+        if (!entry.wrongLedger){ entry.wrongLedger = []; changed = true; }
+        if (!entry.supplements){ entry.supplements = []; changed = true; }
+        if (changed) await BoreStorage.saveDeck(entry);
+        try { await buildReader({ title: entry.title, cards: entry.cards }, entry.pos, { entry, isSupplement:false }); }
+        catch(e){ /* ignore, show upload screen */ }
+      }
     }
-  }
+  })();
 
   // ---- hard zoom lock: pinch-gesture + double-tap, belt-and-braces on top of
   // the viewport meta / touch-action CSS, since some browsers ignore either

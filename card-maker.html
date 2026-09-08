@@ -223,6 +223,282 @@ input.deckName:focus{ outline:none; }
 <div class="bench" id="bench"></div>
 <div class="modal" id="modal"></div>
 
+<script>
+/* ============================================================================
+   BORESCROLL STORAGE — IndexedDB, replacing the old single localStorage blob.
+
+   Why: localStorage tops out around 5-10MB per origin, and decks embed images
+   as base64 text, which blows through that fast (base64 also inflates raw
+   image bytes by ~33% for nothing). IndexedDB's quota is tied to available
+   disk (commonly hundreds of MB to several GB), stores Blobs natively, and
+   every read/write is async so a big save never blocks the scroll/typing.
+
+   Two object stores:
+     "decks"  -> one record per deck (title, cards, pos, wrongLedger,
+                 supplements, etc.) — everything EXCEPT embedded image bytes.
+     "images" -> one record per embedded image, holding the raw Blob. Keyed
+                 by a composite "<deckTitle>::<tokenKey>" id so the same
+                 short token (img1, img2, ...) can be reused independently
+                 across different decks without colliding.
+
+   Card bodies keep referencing images the same way they always have —
+   ![alt](#imgKey) — nothing about the markdown/authoring format changes.
+   Only WHERE the bytes live and HOW they're fetched changes (async now).
+   ========================================================================= */
+(function (root) {
+  'use strict';
+
+  var DB_NAME = 'boreScrollDB';
+  var DB_VERSION = 1;
+  var dbPromise = null;
+
+  function openDB(){
+    if (dbPromise) return dbPromise;
+    dbPromise = new Promise(function (resolve, reject) {
+      var req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onupgradeneeded = function () {
+        var db = req.result;
+        if (!db.objectStoreNames.contains('decks')) db.createObjectStore('decks', { keyPath: 'title' });
+        if (!db.objectStoreNames.contains('images')) db.createObjectStore('images', { keyPath: 'id' });
+      };
+      req.onsuccess = function () { resolve(req.result); };
+      req.onerror = function () { reject(req.error); };
+    });
+    return dbPromise;
+  }
+  function idbPut(store, value){
+    return openDB().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction(store, 'readwrite');
+        tx.objectStore(store).put(value);
+        tx.oncomplete = function () { resolve(); };
+        tx.onerror = function () { reject(tx.error); };
+      });
+    });
+  }
+  function idbGet(store, key){
+    return openDB().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction(store, 'readonly');
+        var req = tx.objectStore(store).get(key);
+        req.onsuccess = function () { resolve(req.result); };
+        req.onerror = function () { reject(req.error); };
+      });
+    });
+  }
+  function idbGetAll(store){
+    return openDB().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction(store, 'readonly');
+        var req = tx.objectStore(store).getAll();
+        req.onsuccess = function () { resolve(req.result || []); };
+        req.onerror = function () { reject(req.error); };
+      });
+    });
+  }
+  function idbGetAllKeys(store){
+    return openDB().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction(store, 'readonly');
+        var req = tx.objectStore(store).getAllKeys();
+        req.onsuccess = function () { resolve(req.result || []); };
+        req.onerror = function () { reject(req.error); };
+      });
+    });
+  }
+  function idbDelete(store, key){
+    return openDB().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction(store, 'readwrite');
+        tx.objectStore(store).delete(key);
+        tx.oncomplete = function () { resolve(); };
+        tx.onerror = function () { reject(tx.error); };
+      });
+    });
+  }
+
+  /* ---- decks ---- */
+  function listDecks(){ return idbGetAll('decks'); }
+  function getDeck(title){ return idbGet('decks', title); }
+  function saveDeck(entry){
+    entry.updatedAt = Date.now();
+    return idbPut('decks', entry).then(function () { return true; }).catch(function () { return false; });
+  }
+  // Renaming a deck changes its primary key, so it's a delete+reinsert, not a
+  // plain put — and every image that belongs to the old title needs its
+  // composite id (and deckTitle field) moved to the new title too.
+  function renameDeck(oldTitle, newTitle){
+    return getDeck(oldTitle).then(function (entry) {
+      if (!entry || oldTitle === newTitle) return false;
+      return idbGetAll('images').then(function (allImages) {
+        var mine = allImages.filter(function (im) { return im.deckTitle === oldTitle; });
+        var renameImages = mine.reduce(function (p, im) {
+          return p.then(function () {
+            var newId = newTitle + '::' + im.tokenKey;
+            return idbPut('images', { id: newId, tokenKey: im.tokenKey, deckTitle: newTitle, blob: im.blob, type: im.type, width: im.width, height: im.height, createdAt: im.createdAt })
+              .then(function () { return idbDelete('images', im.id); });
+          });
+        }, Promise.resolve());
+        return renameImages.then(function () {
+          entry.title = newTitle;
+          return idbDelete('decks', oldTitle).then(function () { return saveDeck(entry); });
+        });
+      });
+    });
+  }
+  function deleteDeck(title){
+    return idbGetAll('images').then(function (allImages) {
+      var mine = allImages.filter(function (im) { return im.deckTitle === title; });
+      return mine.reduce(function (p, im) { return p.then(function () { return idbDelete('images', im.id); }); }, Promise.resolve());
+    }).then(function () { return idbDelete('decks', title); });
+  }
+  function clearAll(){
+    return openDB().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction(['decks', 'images'], 'readwrite');
+        tx.objectStore('decks').clear();
+        tx.objectStore('images').clear();
+        tx.oncomplete = function () { resolve(); };
+        tx.onerror = function () { reject(tx.error); };
+      });
+    });
+  }
+
+  /* ---- images ---- */
+  // tokenKey is the short id already embedded in card markdown as #imgKey —
+  // unchanged authoring format; only the storage backing it moves to IDB.
+  function imageId(deckTitle, tokenKey){ return deckTitle + '::' + tokenKey; }
+  function saveImage(deckTitle, tokenKey, blob, type, width, height){
+    return idbPut('images', {
+      id: imageId(deckTitle, tokenKey), tokenKey: tokenKey, deckTitle: deckTitle,
+      blob: blob, type: type || blob.type, width: width || null, height: height || null, createdAt: Date.now()
+    });
+  }
+  function getImage(deckTitle, tokenKey){ return idbGet('images', imageId(deckTitle, tokenKey)); }
+  function deleteImage(deckTitle, tokenKey){ return idbDelete('images', imageId(deckTitle, tokenKey)); }
+  function listDeckImageKeys(deckTitle){
+    return idbGetAll('images').then(function (all) {
+      return all.filter(function (im) { return im.deckTitle === deckTitle; }).map(function (im) { return im.tokenKey; });
+    });
+  }
+  // Deletes any stored image no longer referenced by #tokenKey in any of the
+  // deck's cards (mother cards AND supplement cards). Only runs when
+  // explicitly triggered — never automatically — so deleting a reference
+  // doesn't destroy an image you meant to reuse.
+  function gcUnusedImages(entry){
+    var used = new Set();
+    var re = /\]\(#([a-zA-Z0-9_-]+)\)/g;
+    function scan(body){ var m; re.lastIndex = 0; while ((m = re.exec(body || '')) !== null) used.add(m[1]); }
+    (entry.cards || []).forEach(function (c) { scan(c.body); });
+    (entry.supplements || []).forEach(function (s) { (s.cards || []).forEach(function (c) { scan(c.body); }); });
+    return listDeckImageKeys(entry.title).then(function (keys) {
+      var toDelete = keys.filter(function (k) { return !used.has(k); });
+      return toDelete.reduce(function (p, k) { return p.then(function () { return deleteImage(entry.title, k); }); }, Promise.resolve())
+        .then(function () { return toDelete.length; });
+    });
+  }
+
+  /* ---- storage pressure awareness ---- */
+  function formatBytes(n){
+    if (n == null) return '';
+    if (n < 1024) return n + ' B';
+    if (n < 1024*1024) return (n/1024).toFixed(0) + ' KB';
+    if (n < 1024*1024*1024) return (n/(1024*1024)).toFixed(1) + ' MB';
+    return (n/(1024*1024*1024)).toFixed(2) + ' GB';
+  }
+  function estimateStorage(){
+    if (!(root.navigator && root.navigator.storage && root.navigator.storage.estimate)) return Promise.resolve(null);
+    return root.navigator.storage.estimate().catch(function () { return null; });
+  }
+  function requestPersistence(){
+    if (root.navigator && root.navigator.storage && root.navigator.storage.persist){
+      root.navigator.storage.persist().catch(function () {});
+    }
+  }
+
+  /* ---- one-time migration from the old single-blob localStorage format ---- */
+  var MIGRATION_FLAG = 'shorts-reader:idb-migrated-v1';
+  var LEGACY_LIBRARY_KEY = 'shorts-reader:library';
+
+  function dataUrlToBlob(dataUrl){
+    var m = /^data:([^;,]+)?(;base64)?,(.*)$/.exec(dataUrl);
+    if (!m) return null;
+    var mime = m[1] || 'application/octet-stream', isBase64 = !!m[2], data = m[3];
+    if (isBase64){
+      var bin = atob(data), len = bin.length, bytes = new Uint8Array(len);
+      for (var i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+      return new Blob([bytes], { type: mime });
+    }
+    return new Blob([decodeURIComponent(data)], { type: mime });
+  }
+  function measureBlobDims(blob){
+    return new Promise(function (resolve) {
+      try {
+        var url = URL.createObjectURL(blob);
+        var img = new Image();
+        img.onload = function () { URL.revokeObjectURL(url); resolve({ width: img.naturalWidth, height: img.naturalHeight }); };
+        img.onerror = function () { URL.revokeObjectURL(url); resolve({ width: null, height: null }); };
+        img.src = url;
+      } catch (e) { resolve({ width: null, height: null }); }
+    });
+  }
+
+  // Migrates every deck out of the old localStorage blob into IndexedDB, and
+  // every embedded base64 image into a real Blob in the images store. The
+  // old localStorage key is left untouched (never destructively deleted) as
+  // a safety net — this only needs to run once, guarded by MIGRATION_FLAG.
+  function migrateFromLocalStorage(){
+    try { if (root.localStorage.getItem(MIGRATION_FLAG)) return Promise.resolve({ migrated: false }); } catch (e) { return Promise.resolve({ migrated: false }); }
+    var raw;
+    try { raw = root.localStorage.getItem(LEGACY_LIBRARY_KEY); } catch (e) { raw = null; }
+    if (!raw) { try { root.localStorage.setItem(MIGRATION_FLAG, '1'); } catch (e) {} return Promise.resolve({ migrated: false }); }
+    var lib;
+    try { lib = JSON.parse(raw); } catch (e) { lib = null; }
+    if (!lib || typeof lib !== 'object') { try { root.localStorage.setItem(MIGRATION_FLAG, '1'); } catch (e) {} return Promise.resolve({ migrated: false }); }
+
+    var titles = Object.keys(lib);
+    var chain = Promise.resolve();
+    var deckCount = 0, imageCount = 0;
+    titles.forEach(function (title) {
+      chain = chain.then(function () {
+        var entry = lib[title];
+        var images = entry.images || {};
+        var keys = Object.keys(images);
+        var imgChain = Promise.resolve();
+        keys.forEach(function (key) {
+          imgChain = imgChain.then(function () {
+            var dataUrl = images[key];
+            var blob = dataUrlToBlob(dataUrl);
+            if (!blob) return;
+            return measureBlobDims(blob).then(function (dims) {
+              return saveImage(title, key, blob, blob.type, dims.width, dims.height).then(function () { imageCount++; });
+            });
+          });
+        });
+        return imgChain.then(function () {
+          delete entry.images; // bytes now live in the images store
+          entry.title = entry.title || title;
+          return saveDeck(entry).then(function () { deckCount++; });
+        });
+      });
+    });
+    return chain.then(function () {
+      try { root.localStorage.setItem(MIGRATION_FLAG, '1'); } catch (e) {}
+      return { migrated: true, decks: deckCount, images: imageCount };
+    });
+  }
+
+  root.BoreStorage = {
+    openDB: openDB, idbPut: idbPut, idbGet: idbGet, idbGetAll: idbGetAll, idbGetAllKeys: idbGetAllKeys, idbDelete: idbDelete,
+    listDecks: listDecks, getDeck: getDeck, saveDeck: saveDeck, renameDeck: renameDeck, deleteDeck: deleteDeck, clearAll: clearAll,
+    saveImage: saveImage, getImage: getImage, deleteImage: deleteImage, listDeckImageKeys: listDeckImageKeys, gcUnusedImages: gcUnusedImages,
+    formatBytes: formatBytes, estimateStorage: estimateStorage, requestPersistence: requestPersistence,
+    migrateFromLocalStorage: migrateFromLocalStorage, dataUrlToBlob: dataUrlToBlob, measureBlobDims: measureBlobDims,
+    _MIGRATION_FLAG: MIGRATION_FLAG, _LEGACY_LIBRARY_KEY: LEGACY_LIBRARY_KEY
+  };
+})(typeof window !== 'undefined' ? window : this);
+
+</script>
 <script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js" defer></script>
 <script>
 (function(){
@@ -235,13 +511,9 @@ input.deckName:focus{ outline:none; }
      STORAGE — same keys as the reader (index.html), so both files always show
      the same decks live. No separate "card-maker" database.
      ========================================================================= */
-  var LIBRARY_KEY = 'shorts-reader:library';
-  var LAST_OPENED_KEY = 'shorts-reader:last-opened';
-  function loadLibrary(){ try{ var r=localStorage.getItem(LIBRARY_KEY); return r?JSON.parse(r):{}; }catch(e){ return {}; } }
-  function saveLibrary(lib){ try{ localStorage.setItem(LIBRARY_KEY, JSON.stringify(lib)); return true; }catch(e){ return false; } }
+  var LAST_OPENED_KEY = 'shorts-reader:last-opened'; // tiny pointer, stays in localStorage
   function migrateEntry(entry){
     var changed=false;
-    if(!entry.images){ entry.images={}; changed=true; }
     if(!entry.wrongLedger){ entry.wrongLedger=[]; changed=true; }
     if(!entry.supplements){ entry.supplements=[]; changed=true; }
     return changed;
@@ -277,8 +549,8 @@ input.deckName:focus{ outline:none; }
      BoreScroll's own inline()/formatBody() formatting rules exactly (bold **,
      italic *, highlight ==, underline __, code `, links), so what you see
      while editing matches what the reader renders. Occlusions become visible
-     chips; embedded images become short tokens (the real data-URL lives in
-     deck.images, never in the editable DOM or the visible text).
+     chips; embedded images become short #tokenKey references (the real
+     bytes live in IndexedDB, never in the editable DOM or the saved text).
      ========================================================================= */
   function inlineToHtml(s){
     var o=esc(s);
@@ -326,14 +598,13 @@ input.deckName:focus{ outline:none; }
       if(fig) return '<div class="fig-ref" contenteditable="false">\uD83D\uDCD6 See '+esc(fig[1])+' in the textbook</div>';
       var im=c.match(/^!\[([^\]]*)\]\((\S+?)\)$/);
       if(im){
-        var alt=im[1].trim(), url=im[2], token=url;
-        if(/^data:/.test(url)){
-          var key='img'+(Object.keys(images).length+1);
-          images[key]=url; token='#'+key;
-        }
-        var full = token.charAt(0)==='#' ? (images[token.slice(1)]||url) : url;
+        var alt=im[1].trim(), url=im[2];
+        // Pass the reference straight through as both src and data-token: a
+        // #tokenKey shows as-is here and gets resolved to a real
+        // IndexedDB-backed object URL by the async resolveCardImages() pass
+        // right after insertion; a data:/http(s) URL displays natively.
         var cap = alt ? '<figcaption contenteditable="false">'+esc(alt)+'</figcaption>' : '';
-        return '<figure contenteditable="false" data-token="'+escAttr(token)+'"><img src="'+escAttr(full)+'" alt="'+escAttr(alt)+'">'+cap+'</figure>';
+        return '<figure contenteditable="false" data-token="'+escAttr(url)+'"><img src="'+escAttr(url)+'" alt="'+escAttr(alt)+'">'+cap+'</figure>';
       }
       if(/^\s*([-*_])(?:\s*\1){2,}\s*$/.test(c)) return '<hr>';
       var ls=c.split('\n').filter(function(l){return l.trim().length;});
@@ -429,13 +700,14 @@ input.deckName:focus{ outline:none; }
   function blockquoteMd(node, images){
     return inlineNodeMd(node, images).split('\n').map(function(l){return '> '+l;}).join('\n');
   }
-  function figureMd(node, images){
+  function figureMd(node){
     var img=node.querySelector('img'); if(!img) return '';
     var cap=node.querySelector('figcaption'), alt=cap?cap.textContent.trim():(img.getAttribute('alt')||'');
+    // data-token is set once at insertion and never touched by the
+    // display-time resolver (which only ever rewrites img.src), so it's
+    // always the canonical reference to save — #tokenKey or a real url.
     var token=node.getAttribute('data-token')||img.getAttribute('src')||'';
-    var url=token;
-    if(token.charAt(0)==='#'){ url=images[token.slice(1)]||img.getAttribute('src')||token; }
-    return '!['+alt+']('+url+')';
+    return '!['+alt+']('+token+')';
   }
   function tableMd(node, images){
     var headCells=node.querySelectorAll('thead th');
@@ -458,20 +730,26 @@ input.deckName:focus{ outline:none; }
                         // re-parsing localStorage on every call would make every mutation land on
                         // a throwaway object that's discarded before the debounced save ever runs.
 
-  function library(){ return loadLibrary(); }
-  function currentEntry(){
-    var lib=library();
-    var titles=Object.keys(lib);
-    if(!state.deckTitle || !lib[state.deckTitle]){
-      state.deckTitle = titles.length ? titles.sort(function(a,b){return lib[b].updatedAt-lib[a].updatedAt;})[0] : null;
-    }
-    if(!state.deckTitle){ cachedEntry=null; return null; }
-    if(!cachedEntry || cachedEntry.title !== state.deckTitle){
-      cachedEntry = lib[state.deckTitle];
-      migrateEntry(cachedEntry);
-    }
+  var deckTitles = []; // [{title, updatedAt}] — lightweight index for the deck picker, kept in sync explicitly
+  async function refreshDeckTitles(){
+    var all = await BoreStorage.listDecks();
+    deckTitles = all.map(function(e){ return { title:e.title, updatedAt:e.updatedAt||0 }; })
+      .sort(function(a,b){ return b.updatedAt - a.updatedAt; });
+    return deckTitles;
+  }
+  // Loads a deck from IndexedDB into the live in-memory cache. All rendering
+  // reads through currentEntry()/cards()/currentCard(), which stay perfectly
+  // synchronous — only THIS function (and its callers: boot, deck switch,
+  // new deck, import) ever touches storage directly, so the render layer
+  // never has to know it's async underneath.
+  async function switchToDeck(title){
+    var entry = await BoreStorage.getDeck(title);
+    if (entry) migrateEntry(entry);
+    cachedEntry = entry || null;
+    state.deckTitle = entry ? entry.title : null;
     return cachedEntry;
   }
+  function currentEntry(){ return cachedEntry; }
   function invalidateCache(){ cachedEntry=null; }
   function cards(){ var e=currentEntry(); return e?e.cards:[]; }
   function currentCard(){ return cards()[state.active]||null; }
@@ -479,10 +757,11 @@ input.deckName:focus{ outline:none; }
     state.saved=false; paintSaved();
     clearTimeout(saveTimer);
     saveTimer=setTimeout(function(){
-      var lib=library(); // fresh load, so we don't clobber other decks changed elsewhere (e.g. the reader)
-      if(cachedEntry){ cachedEntry.updatedAt=Date.now(); lib[cachedEntry.title]=cachedEntry; }
-      var ok=saveLibrary(lib);
-      state.saved=ok; paintSaved(ok?null:'storage full');
+      if (!cachedEntry) return;
+      BoreStorage.saveDeck(cachedEntry).then(function(ok){
+        state.saved=ok; paintSaved(ok?null:'storage full');
+        if (ok) refreshDeckTitles();
+      });
     }, 400);
   }
   function paintSaved(msg){ var el=$('saveState'); if(!el) return; var lbl=el.querySelector('.lbl');
@@ -538,11 +817,9 @@ input.deckName:focus{ outline:none; }
     renderCard();
   }
   function deckPicker(){
-    var lib=library(); var titles=Object.keys(lib);
-    if(titles.length<2) return '';
-    titles.sort(function(a,b){return lib[b].updatedAt-lib[a].updatedAt;});
-    return '<select class="deck-select" id="deckSelect">'+titles.map(function(t){
-      return '<option value="'+escAttr(t)+'"'+(t===state.deckTitle?' selected':'')+'>'+esc(t)+'</option>';
+    if(deckTitles.length<2) return '';
+    return '<select class="deck-select" id="deckSelect">'+deckTitles.map(function(d){
+      return '<option value="'+escAttr(d.title)+'"'+(d.title===state.deckTitle?' selected':'')+'>'+esc(d.title)+'</option>';
     }).join('')+'</select>';
   }
   function modeSwitch(){
@@ -588,6 +865,35 @@ input.deckName:focus{ outline:none; }
     }).join('');
   }
 
+  // Images are referenced in card markdown as #tokenKey and rendered with
+  // that literal src by mdToEditHtml — resolving the real bytes is a
+  // separate async step since they live in IndexedDB, not inline as base64.
+  // Cached in memory so repeat renders of the same card don't re-fetch.
+  var imgUrlCache = {}; // "deckTitle::key" -> objectURL string | null
+  function resolveCardImages(rootEl, deckTitle){
+    if (!rootEl || !deckTitle) return Promise.resolve();
+    var imgs = rootEl.querySelectorAll('img[src^="#"]');
+    var chain = Promise.resolve();
+    Array.prototype.forEach.call(imgs, function(imgEl){
+      var key = imgEl.getAttribute('src').slice(1);
+      if (!key) return;
+      var cacheKey = deckTitle + '::' + key;
+      chain = chain.then(function(){
+        if (Object.prototype.hasOwnProperty.call(imgUrlCache, cacheKey)){
+          var cached = imgUrlCache[cacheKey];
+          if (cached) imgEl.src = cached; else { var fig=imgEl.closest('figure'); if(fig) fig.style.display='none'; }
+          return;
+        }
+        return BoreStorage.getImage(deckTitle, key).then(function(rec){
+          var url = (rec && rec.blob) ? URL.createObjectURL(rec.blob) : null;
+          imgUrlCache[cacheKey] = url;
+          if (url) imgEl.src = url; else { var fig=imgEl.closest('figure'); if(fig) fig.style.display='none'; }
+        }).catch(function(){ imgUrlCache[cacheKey] = null; var fig=imgEl.closest('figure'); if(fig) fig.style.display='none'; });
+      });
+    });
+    return chain;
+  }
+
   function renderCard(){
     var entry=currentEntry(); var c=currentCard(); var card=$('card');
     if(!entry || !c){ card.innerHTML='<div class="empty-card">No card selected.<br>Create a deck or card to start.</div>'; renderReadout(); return; }
@@ -597,8 +903,9 @@ input.deckName:focus{ outline:none; }
       renderReadout(); wireTitle(); wireMdArea(); return;
     }
     card.innerHTML=cardHead(c)+'<div class="c-title" contenteditable="true" spellcheck="true" id="title">'+esc(c.title||'')+'</div>'+
-      '<div class="c-body" contenteditable="true" spellcheck="true" id="body">'+mdToEditHtml(c.body||'', {id:'c'+c.idx}, entry, entry.images)+'</div>';
+      '<div class="c-body" contenteditable="true" spellcheck="true" id="body">'+mdToEditHtml(c.body||'', {id:'c'+c.idx}, entry)+'</div>';
     renderReadout(); wireTitle(); wireWysiwyg();
+    resolveCardImages($('body'), entry.title);
   }
   function cardHead(c){
     return '<button class="card-imgbtn" id="imgBtn" title="Insert image">'+sv(ICON.img)+'</button>'+
@@ -630,8 +937,8 @@ input.deckName:focus{ outline:none; }
     body.addEventListener('blur', function(){ setTimeout(hideFloatbar,150); });
     body.addEventListener('click', function(e){ var img=e.target.closest('figure img'); if(img) img.parentElement.classList.toggle('sel'); });
   }
-  function commitWysiwyg(){ var body=$('body'); if(!body) return; var clone=body.cloneNode(true); var entry=currentEntry();
-    currentCard().body = editHtmlToMd(clone, entry?entry.images:{}); scheduleSave(); }
+  function commitWysiwyg(){ var body=$('body'); if(!body) return; var clone=body.cloneNode(true);
+    currentCard().body = editHtmlToMd(clone); scheduleSave(); }
   function wysiwygKeys(e){
     if((e.ctrlKey||e.metaKey)&&!e.altKey){ var k=e.key.toLowerCase();
       if(k==='b'){ e.preventDefault(); execWrap('bold'); } else if(k==='i'){ e.preventDefault(); execWrap('italic'); }
@@ -732,36 +1039,58 @@ input.deckName:focus{ outline:none; }
   function hideSlash(){ var sm=$('slash'); if(sm) sm.classList.remove('show'); }
 
   /* ============================================================================
-     IMAGE EMBEDDING — stores a short token in the deck's images map; the
-     editable DOM and the markdown never carry the full data-URL as text.
+     IMAGE EMBEDDING — stores a short token (#tokenKey) in card markdown; the
+     actual bytes live in IndexedDB as a Blob, not inline as base64 text.
+     Lossless where practical: JPEG/PNG under ~700KB pass through with their
+     original bytes untouched; anything larger is downscaled via canvas;
+     other formats are decoded once and re-encoded as PNG.
      ========================================================================= */
   function pickImage(){
     var input=document.createElement('input'); input.type='file'; input.accept='image/*';
-    input.onchange=function(){ var f=input.files[0]; if(!f) return; var r=new FileReader();
-      r.onload=function(){ downscale(r.result, f.type, function(url){ embedImage(url, (f.name||'image').replace(/\.[a-z0-9]+$/i,'')); }); };
-      r.readAsDataURL(f); };
+    input.onchange=function(){ var f=input.files[0]; if(f) embedImageFile(f); };
     input.click();
   }
-  function embedImage(dataUrl, name){
-    var entry=currentEntry(); if(!entry) return;
-    var key='img'+(Object.keys(entry.images).length+1); entry.images[key]=dataUrl;
-    if(state.editMode==='md'){ insertMd('\n!['+(name||'image')+'](#'+key+')\n'); }
-    else {
-      var body=$('body'); if(body){
-        var fig=document.createElement('figure'); fig.setAttribute('contenteditable','false'); fig.setAttribute('data-token','#'+key);
-        var im=document.createElement('img'); im.src=dataUrl; im.alt=name||'image'; fig.appendChild(im);
-        if(name){ var fc=document.createElement('figcaption'); fc.setAttribute('contenteditable','false'); fc.textContent=name; fig.appendChild(fc); }
-        insertNodeAtCaret(fig); commitWysiwyg(); renderCard();
-      }
+  function processImageFile(file){
+    var type=(file.type||'').toLowerCase();
+    var isJpegPng = type==='image/jpeg' || type==='image/jpg' || type==='image/png';
+    if(isJpegPng && file.size<=700*1024){
+      return (window.createImageBitmap ? createImageBitmap(file).then(function(bmp){ var d={width:bmp.width,height:bmp.height}; if(bmp.close) bmp.close(); return d; }).catch(function(){ return {width:null,height:null}; }) : Promise.resolve({width:null,height:null}))
+        .then(function(dims){ return { blob:file, type:file.type||(type==='image/jpg'?'image/jpeg':type), width:dims.width, height:dims.height }; });
     }
-    scheduleSave();
+    if(!window.createImageBitmap) return Promise.resolve({ blob:file, type:file.type, width:null, height:null });
+    return createImageBitmap(file).then(function(bmp){
+      var maxDim=1280, scale=Math.min(1, maxDim/Math.max(bmp.width,bmp.height));
+      var w=Math.max(1,Math.round(bmp.width*scale)), h=Math.max(1,Math.round(bmp.height*scale));
+      var canvas=document.createElement('canvas'); canvas.width=w; canvas.height=h;
+      canvas.getContext('2d').drawImage(bmp,0,0,w,h);
+      if(bmp.close) bmp.close();
+      var outType = isJpegPng ? (type==='image/jpg'?'image/jpeg':type) : 'image/png';
+      var quality = outType==='image/jpeg' ? 0.86 : undefined;
+      return new Promise(function(res){ canvas.toBlob(function(b){ res(b); }, outType, quality); })
+        .then(function(outBlob){ return outBlob ? { blob:outBlob, type:outType, width:w, height:h } : { blob:file, type:file.type, width:w, height:h }; });
+    }).catch(function(){ return { blob:file, type:file.type, width:null, height:null }; });
   }
-  function downscale(dataUrl, type, cb){
-    var approx=Math.ceil(dataUrl.length*0.75); if(approx<=700*1024){ cb(dataUrl); return; }
-    var img=new Image(); img.onload=function(){ var s=Math.min(1,1280/img.naturalWidth), w=Math.round(img.naturalWidth*s), h=Math.round(img.naturalHeight*s);
-      try{ var cv=document.createElement('canvas'); cv.width=w; cv.height=h; cv.getContext('2d').drawImage(img,0,0,w,h);
-        var out=cv.toDataURL(type==='image/png'?'image/png':'image/jpeg',0.82); cb(out.length<dataUrl.length?out:dataUrl); }catch(e){ cb(dataUrl); } };
-    img.onerror=function(){ cb(dataUrl); }; img.src=dataUrl;
+  function makeImageKey(){ return 'img_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7); }
+  function embedImageFile(file){
+    var entry=currentEntry(); if(!entry||!file) return;
+    processImageFile(file).then(function(res){
+      var key=makeImageKey();
+      return BoreStorage.saveImage(entry.title, key, res.blob, res.type, res.width, res.height).then(function(){
+        var name=(file.name||'image').replace(/\.[a-z0-9]+$/i,'');
+        return embedImageToken(key, name);
+      });
+    }).catch(function(){ /* image failed to save — leave the editor untouched */ });
+  }
+  function embedImageToken(key, name){
+    var entry=currentEntry(); if(!entry) return Promise.resolve();
+    if(state.editMode==='md'){ insertMd('\n!['+(name||'image')+'](#'+key+')\n'); scheduleSave(); return Promise.resolve(); }
+    var body=$('body'); if(!body) return Promise.resolve();
+    var fig=document.createElement('figure'); fig.setAttribute('contenteditable','false'); fig.setAttribute('data-token','#'+key);
+    var im=document.createElement('img'); im.src='#'+key; im.alt=name||'image'; fig.appendChild(im);
+    if(name){ var fc=document.createElement('figcaption'); fc.setAttribute('contenteditable','false'); fc.textContent=name; fig.appendChild(fc); }
+    insertNodeAtCaret(fig); commitWysiwyg(); renderCard();
+    scheduleSave();
+    return resolveCardImages($('body'), entry.title);
   }
 
   /* ============================================================================
@@ -784,12 +1113,13 @@ input.deckName:focus{ outline:none; }
   function newDeck(){
     var title=prompt('Name this deck:','Untitled Deck'); if(title===null) return;
     title=title.trim()||'Untitled Deck';
-    var lib=library();
-    var final=title, n=2; while(lib[final]){ final=title+' '+n; n++; }
-    lib[final]={ title:final, cards:[{idx:1,tag:'',title:'',body:''}], pos:1, addedAt:Date.now(), updatedAt:Date.now(), images:{}, wrongLedger:[], supplements:[] };
-    saveLibrary(lib);
-    state.deckTitle=final; state.active=0; state.editMode='visual';
-    renderShell();
+    var existingTitles = deckTitles.map(function(d){ return d.title; });
+    var final=title, n=2; while(existingTitles.indexOf(final)!==-1){ final=title+' '+n; n++; }
+    var entry={ title:final, cards:[{idx:1,tag:'',title:'',body:''}], pos:1, addedAt:Date.now(), updatedAt:Date.now(), wrongLedger:[], supplements:[] };
+    BoreStorage.saveDeck(entry).then(function(){ return refreshDeckTitles(); }).then(function(){
+      cachedEntry = entry; state.deckTitle=final; state.active=0; state.editMode='visual';
+      renderShell();
+    });
   }
 
   /* ============================================================================
@@ -858,36 +1188,61 @@ input.deckName:focus{ outline:none; }
   function ensureMammoth(cb){ if(window.mammoth) return cb(true); var s=document.createElement('script'); s.src='https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js'; s.onload=function(){ cb(!!window.mammoth); }; s.onerror=function(){ cb(false); }; document.head.appendChild(s); }
   function commitImport(deck, asNew){
     if(!deck||!deck.cards.length){ alert('No cards found in that file.'); return; }
-    var lib=library();
     if(asNew){
-      var final=deck.title||'Imported deck', n=2; while(lib[final]){ final=(deck.title||'Imported deck')+' '+n; n++; }
-      lib[final]={ title:final, cards:deck.cards, pos:1, addedAt:Date.now(), updatedAt:Date.now(), images:{}, wrongLedger:[], supplements:[] };
-      saveLibrary(lib); state.deckTitle=final; state.active=0;
+      var existingTitles = deckTitles.map(function(d){ return d.title; });
+      var final=deck.title||'Imported deck', n=2; while(existingTitles.indexOf(final)!==-1){ final=(deck.title||'Imported deck')+' '+n; n++; }
+      var entry={ title:final, cards:deck.cards, pos:1, addedAt:Date.now(), updatedAt:Date.now(), wrongLedger:[], supplements:[] };
+      BoreStorage.saveDeck(entry).then(function(){ return refreshDeckTitles(); }).then(function(){
+        cachedEntry = entry; state.deckTitle=final; state.active=0;
+        closeModal(); renderShell();
+      });
     } else {
-      var entry=currentEntry(); if(!entry){ closeModal(); return; }
-      var maxIdx=entry.cards.reduce(function(m,c){return Math.max(m,c.idx||0);},0);
-      deck.cards.forEach(function(c,i){ entry.cards.push({ idx:maxIdx+1+i, tag:c.tag||'', title:c.title||'', body:c.body||'' }); });
-      lib[entry.title]=entry; saveLibrary(lib);
+      var current=currentEntry(); if(!current){ closeModal(); return; }
+      var maxIdx=current.cards.reduce(function(m,c){return Math.max(m,c.idx||0);},0);
+      deck.cards.forEach(function(c,i){ current.cards.push({ idx:maxIdx+1+i, tag:c.tag||'', title:c.title||'', body:c.body||'' }); });
+      BoreStorage.saveDeck(current).then(function(){ return refreshDeckTitles(); }).then(function(){
+        closeModal(); renderShell();
+      });
     }
-    closeModal(); renderShell();
   }
 
   /* ============================================================================
-     EXPORT — expands image tokens back to full data-URLs, so the file is
-     self-contained and drops straight into the reader.
+     EXPORT — expands image tokens back to full data-URLs (fetched from
+     IndexedDB and converted), so the exported file is self-contained and
+     drops straight into the reader on its own, with no IndexedDB dependency.
      ========================================================================= */
+  function blobToDataUrl(blob){
+    return new Promise(function(resolve, reject){
+      var r=new FileReader();
+      r.onload=function(){ resolve(r.result); };
+      r.onerror=function(){ reject(r.error); };
+      r.readAsDataURL(blob);
+    });
+  }
   function doExport(){
     var entry=currentEntry(); if(!entry){ return; }
-    var md='# '+entry.title+'\n';
-    entry.cards.forEach(function(c,i){
-      md+='\n---\n\n## '+(c.title||('Card '+(i+1)))+'\n';
-      if(c.tag) md+='<!-- tag: '+c.tag+' -->\n';
-      var body=(c.body||'').replace(/\]\(#(img\d+)\)/g, function(m,k){ return '](' + (entry.images[k]||('#'+k)) + ')'; });
-      md+='\n'+body+'\n';
+    var keys=[]; var re=/\]\(#([a-zA-Z0-9_-]+)\)/g;
+    entry.cards.forEach(function(c){ var m; re.lastIndex=0; while((m=re.exec(c.body||''))!==null){ if(keys.indexOf(m[1])===-1) keys.push(m[1]); } });
+    var urlMap={};
+    var chain=keys.reduce(function(p,key){
+      return p.then(function(){
+        return BoreStorage.getImage(entry.title, key).then(function(rec){
+          if(rec && rec.blob) return blobToDataUrl(rec.blob).then(function(dataUrl){ urlMap[key]=dataUrl; });
+        }).catch(function(){});
+      });
+    }, Promise.resolve());
+    chain.then(function(){
+      var md='# '+entry.title+'\n';
+      entry.cards.forEach(function(c,i){
+        md+='\n---\n\n## '+(c.title||('Card '+(i+1)))+'\n';
+        if(c.tag) md+='<!-- tag: '+c.tag+' -->\n';
+        var body=(c.body||'').replace(/\]\(#([a-zA-Z0-9_-]+)\)/g, function(m,k){ return '](' + (urlMap[k]||('#'+k)) + ')'; });
+        md+='\n'+body+'\n';
+      });
+      var blob=new Blob([md],{type:'text/markdown'}), a=document.createElement('a');
+      a.href=URL.createObjectURL(blob); a.download=entry.title.replace(/[^\w\- ]+/g,'').replace(/\s+/g,'-')+'.md';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
     });
-    var blob=new Blob([md],{type:'text/markdown'}), a=document.createElement('a');
-    a.href=URL.createObjectURL(blob); a.download=entry.title.replace(/[^\w\- ]+/g,'').replace(/\s+/g,'-')+'.md';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
   }
 
   /* ============================================================================
@@ -908,11 +1263,22 @@ input.deckName:focus{ outline:none; }
   /* ============================================================================
      GLOBAL WIRING
      ========================================================================= */
+  var renameFromTitle=null, renameTimer=null;
+  function flushRename(){
+    clearTimeout(renameTimer);
+    var entry=currentEntry(); if(!entry || renameFromTitle===null){ renameFromTitle=null; return Promise.resolve(); }
+    var from=renameFromTitle, to=entry.title; renameFromTitle=null;
+    if(from===to || !to || !to.trim()) return Promise.resolve();
+    return BoreStorage.renameDeck(from, to).then(function(){ return refreshDeckTitles(); });
+  }
   function wireShell(){
     var dn=$('deckName'); if(dn){ dn.addEventListener('input', function(){ var entry=currentEntry(); if(!entry) return;
-      var lib=library(); delete lib[entry.title]; entry.title=dn.value; state.deckTitle=entry.title; lib[entry.title]=entry; saveLibrary(lib); renderSpines(); });
-      dn.addEventListener('blur', function(){ var entry=currentEntry(); if(entry && !entry.title.trim()){ entry.title='Untitled Deck'; dn.value=entry.title; scheduleSave(); } }); }
-    var ds=$('deckSelect'); if(ds) ds.onchange=function(){ state.deckTitle=ds.value; state.active=0; state.editMode='visual'; renderShell(); };
+      if(renameFromTitle===null) renameFromTitle=entry.title; // title as of when this rename-in-progress started
+      entry.title=dn.value; state.deckTitle=entry.title; renderSpines();
+      clearTimeout(renameTimer); renameTimer=setTimeout(flushRename, 500); });
+      dn.addEventListener('blur', function(){ var entry=currentEntry(); if(entry && !entry.title.trim()){ entry.title='Untitled Deck'; dn.value=entry.title; state.deckTitle=entry.title; }
+        flushRename(); }); }
+    var ds=$('deckSelect'); if(ds) ds.onchange=function(){ flushRename().then(function(){ return switchToDeck(ds.value); }).then(function(){ state.active=0; state.editMode='visual'; renderShell(); }); };
     $('spines').addEventListener('click', function(e){
       var del=e.target.closest('.s-del'); if(del){ e.stopPropagation(); deleteCard(+del.dataset.del); return; }
       var s=e.target.closest('.spine'); if(s){ state.active=+s.dataset.i; renderSpines(); renderCard(); }
@@ -944,14 +1310,25 @@ input.deckName:focus{ outline:none; }
   /* ============================================================================
      INIT
      ========================================================================= */
-  var lib0=library();
-  if(!Object.keys(lib0).length){
-    lib0['Untitled Deck']={ title:'Untitled Deck', cards:[{idx:1,tag:'',title:'',body:''}], pos:1, addedAt:Date.now(), updatedAt:Date.now(), images:{}, wrongLedger:[], supplements:[] };
-    saveLibrary(lib0);
-  }
-  var lastOpened = localStorage.getItem(LAST_OPENED_KEY);
-  state.deckTitle = (lastOpened && lib0[lastOpened]) ? lastOpened : Object.keys(lib0).sort(function(a,b){return lib0[b].updatedAt-lib0[a].updatedAt;})[0];
-  renderShell();
+  (function boot(){
+    BoreStorage.migrateFromLocalStorage().catch(function(){}).then(function(){
+      BoreStorage.requestPersistence();
+      return refreshDeckTitles();
+    }).then(function(){
+      if(!deckTitles.length){
+        var entry={ title:'Untitled Deck', cards:[{idx:1,tag:'',title:'',body:''}], pos:1, addedAt:Date.now(), updatedAt:Date.now(), wrongLedger:[], supplements:[] };
+        return BoreStorage.saveDeck(entry).then(function(){ return refreshDeckTitles(); }).then(function(){ return entry.title; });
+      }
+      var lastOpened = localStorage.getItem(LAST_OPENED_KEY);
+      var titles = deckTitles.map(function(d){ return d.title; });
+      return (lastOpened && titles.indexOf(lastOpened)!==-1) ? lastOpened : deckTitles[0].title;
+    }).then(function(title){
+      return switchToDeck(title);
+    }).then(function(){
+      state.active=0;
+      renderShell();
+    });
+  })();
 })();
 
 </script>
