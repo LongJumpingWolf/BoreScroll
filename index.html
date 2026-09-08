@@ -328,11 +328,104 @@
   .likedRow .lrTitle{ font-family:'Fraunces',serif; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .likedEmpty{ text-align:center; font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--ink-dim); padding:14px 0; }
 
-  .eyebrow{ display:flex; align-items:center; gap:10px; margin-bottom:16px; flex-shrink:0; position:relative; z-index:1; }
+  .eyebrow{ display:flex; align-items:center; gap:10px; margin-bottom:16px; flex-shrink:0; position:relative; z-index:1;
+    padding-right:46px; }
   .section-tag{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:0.12em;
     text-transform:uppercase; color:var(--eosin); border:1px solid var(--eosin-dim); border-radius:100px; padding:4px 10px; }
   .idx-tag{ font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--gold);
     border:1px solid rgba(240,168,63,0.4); border-radius:100px; padding:4px 9px; opacity:0.9; }
+  .weak-flag{ display:inline-flex; align-items:center; gap:4px; font-family:'IBM Plex Mono',monospace;
+    font-size:9.5px; color:#c0392b; border:1px solid rgba(192,57,43,0.4); border-radius:100px;
+    padding:3px 8px 3px 7px; margin-left:auto; }
+  .weak-flag svg{ width:10px; height:10px; }
+
+  /* ---- occlusion spans (inside .body) ---- */
+  .body .occ.plain{ text-decoration:underline; text-decoration-style:dotted;
+    text-decoration-color:var(--gold); text-underline-offset:3px; }
+  .body .occ.box{ display:inline-block; min-width:2.4em; border:1.5px solid var(--gold);
+    border-radius:5px; color:transparent; user-select:none; cursor:pointer; padding:0 7px;
+    line-height:1.3; position:relative; vertical-align:baseline; background:rgba(240,168,63,0.06); }
+  .body .occ.box:hover{ background:rgba(240,168,63,0.14); }
+  .body .occ.box .hintlbl{ position:absolute; left:0; right:0; top:50%; transform:translateY(-50%);
+    text-align:center; color:var(--ink-dim); font-family:'Inter',sans-serif; font-size:11px;
+    font-style:normal; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding:0 4px; }
+  .body .occ.box.flagged{ border-color:#c0392b; }
+  .body .occ.box.flagged::after{ content:""; position:absolute; top:-4px; right:-4px; width:7px;
+    height:7px; border-radius:50%; background:#c0392b; box-shadow:0 0 0 1.5px #fff; }
+  .body .occ.revealed{ background:rgba(240,168,63,0.16); padding:0 4px; border-radius:4px;
+    box-shadow:inset 0 0 0 1.5px var(--gold); }
+  .body .occ.right{ display:inline-block; min-width:2.4em; border:1.5px solid #5a9c78; border-radius:5px;
+    color:transparent; padding:0 7px; background:rgba(90,156,120,0.09); }
+  .body .occ.wrong{ background:rgba(192,57,43,0.12); padding:0 4px; border-radius:4px;
+    box-shadow:inset 0 0 0 1.5px #c0392b; color:#7a2318; }
+
+  /* ---- grader popover ---- */
+  .grader{ position:fixed; z-index:220; display:none; gap:6px; background:#1a1712; border-radius:12px;
+    padding:6px; box-shadow:0 16px 36px -12px rgba(0,0,0,0.5); transform:translate(-50%,8px); }
+  .grader.show{ display:flex; }
+  .grader::before{ content:""; position:absolute; left:50%; top:-5px; transform:translateX(-50%) rotate(45deg);
+    width:9px; height:9px; background:#1a1712; }
+  .grader button{ display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:500;
+    padding:9px 14px; border-radius:9px; border:none; font-family:'Inter',sans-serif; }
+  .grader .gr-wrong{ background:#c0392b; color:#fff; }
+  .grader .gr-right{ background:#3f8a63; color:#fff; }
+  .grader .kk{ font-family:'IBM Plex Mono',monospace; font-size:9.5px; opacity:0.75; margin-left:2px; }
+
+  /* ---- study / cram header buttons ---- */
+  .studyBtn, .cramBtn{ display:inline-flex; align-items:center; gap:6px; font-size:12.5px;
+    padding:8px 12px; border-radius:100px; border:1px solid var(--line); background:#fff; color:var(--ink);
+    font-family:'Inter',sans-serif; white-space:nowrap; }
+  .studyBtn svg, .cramBtn svg{ width:14px; height:14px; }
+  .studyBtn.on{ background:#c0392b; border-color:#c0392b; color:#fff; }
+  .cramBtn.on{ background:var(--gold); border-color:var(--gold); color:#1a1712; }
+  .studyHint{ position:fixed; top:calc(64px + env(safe-area-inset-top)); left:50%; transform:translateX(-50%);
+    z-index:60; font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--gold);
+    background:rgba(255,255,255,0.92); border:1px solid rgba(240,168,63,0.4); border-radius:100px;
+    padding:5px 12px; animation:studyPulse 1.6s ease-in-out infinite; pointer-events:none; }
+  @keyframes studyPulse{ 0%,100%{ opacity:0.55; } 50%{ opacity:1; } }
+
+  /* ---- cram progress bar (top-anchored, depleting, unmoving) ---- */
+  .cramBarWrap{ position:fixed; top:0; left:0; right:0; height:4px; z-index:65; display:none;
+    background:rgba(0,0,0,0.08); }
+  .cramBarWrap.show{ display:block; }
+  .cramBar{ height:100%; width:100%; background:linear-gradient(90deg, var(--gold), #f4c069);
+    transition:width .25s linear; }
+  .cramBar.low{ background:linear-gradient(90deg, #c0392b, var(--gold)); }
+  .cramBar.out{ background:#c0392b; }
+  .cramTime{ position:fixed; top:8px; right:14px; z-index:66; font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px; color:var(--gold); background:rgba(255,255,255,0.85); border-radius:100px;
+    padding:3px 9px; display:none; }
+  .cramTime.show{ display:block; }
+  .cramTime.out{ color:#c0392b; }
+
+  /* ---- library: nested supplement rows (no separate folders) ---- */
+  .libSupps{ margin:2px 0 2px 16px; padding-left:12px; border-left:2px solid var(--line); }
+  .libSuppRow{ display:flex; align-items:center; gap:8px; padding:7px 10px; border-radius:9px; cursor:pointer; }
+  .libSuppRow:hover{ background:var(--soft-orange); }
+  .libSuppRow .lsDot{ width:6px; height:6px; border-radius:50%; background:#c0392b; flex-shrink:0; }
+  .libSuppRow .lsName{ font-size:12.5px; color:var(--ink); flex:1; }
+  .libSuppRow .lsMeta{ font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:var(--ink-dim); }
+  .libExpand{ background:none; border:none; color:var(--ink-dim); font-size:11px; padding:2px 6px;
+    font-family:'IBM Plex Mono',monospace; cursor:pointer; }
+  .libExpand:hover{ color:var(--eosin); }
+  .supplementBadge{ font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:#c0392b;
+    border:1px solid rgba(192,57,43,0.35); border-radius:100px; padding:2px 7px; margin-left:6px; }
+
+  /* ---- session summary toast ---- */
+  .summaryToast{ position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(20px);
+    background:#1a1712; color:#fff; border-radius:16px; padding:16px 20px; z-index:230;
+    opacity:0; pointer-events:none; transition:.22s; min-width:270px; max-width:88vw;
+    box-shadow:0 20px 44px -16px rgba(0,0,0,0.6); font-family:'Inter',sans-serif; }
+  .summaryToast.show{ opacity:1; pointer-events:auto; transform:translateX(-50%) translateY(0); }
+  .summaryToast h4{ font-family:'Fraunces',serif; font-size:17px; font-weight:600; margin-bottom:6px; }
+  .sumStats{ display:flex; gap:14px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:#b8b3a8; margin:8px 0 4px; }
+  .sumStats .sr{ color:#7fc79b; } .sumStats .sw{ color:#e79b93; }
+  .sumSub{ font-size:12px; color:#b8b3a8; margin:6px 0 12px; }
+  .sumActions{ display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+  .sumActions button{ font-size:12.5px; padding:9px 13px; border-radius:9px; border:1px solid rgba(255,255,255,0.16);
+    color:#fff; background:transparent; font-family:'Inter',sans-serif; }
+  .sumActions button:hover{ background:rgba(255,255,255,0.08); }
+  .sumActions .sumPrime{ background:var(--gold); border-color:var(--gold); color:#1a1712; font-weight:500; }
 
   h2{ font-family:'Fraunces',serif; font-weight:600; font-size:clamp(20px,4.2vw,26px);
     line-height:1.28; margin:0 0 16px; letter-spacing:-0.01em; flex-shrink:0; }
@@ -501,6 +594,8 @@
     .cover h1{ font-size:clamp(30px,10.5vw,44px); }
     .jumpPanel{ padding-left:16px; padding-right:16px; }
     header.top .swap{ font-size:9px; padding:8px 9px; }
+    .studyBtn span, .cramBtn span{ display:none; }
+    .studyBtn, .cramBtn{ padding:8px 10px; }
   }
   @media (max-width:360px){
     .uploadCard{ padding:22px 18px; }
@@ -573,12 +668,28 @@
   <header class="top">
     <div class="brand" id="deckTitle">Deck <span class="num" id="hcount"></span></div>
     <div class="headerBtns">
+      <button class="studyBtn" id="studyBtn" title="Occlusion study session">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="7" width="18" height="10" rx="2"/><path d="M7 7v10M17 7v10" opacity=".4"/></svg>
+        <span id="studyBtnLabel">Study</span>
+      </button>
+      <button class="cramBtn" id="cramBtn" title="15-minute timed read-through">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M13 2L3 14h7l-1 8 10-12h-7z"/></svg>
+        <span id="cramBtnLabel">Cram</span>
+      </button>
       <button class="iconBtn" id="jumpBtn" title="Jump / search (press /)" aria-label="Jump or search">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
       </button>
       <button class="swap" id="swapBtn">load a different file</button>
     </div>
   </header>
+
+  <div class="cramBarWrap" id="cramBarWrap"><div class="cramBar" id="cramBar"></div></div>
+  <div class="cramTime" id="cramTime"></div>
+  <div class="studyHint" id="studyHint" style="display:none">press Space to reveal &middot; N for missed</div>
+  <div class="grader" id="grader">
+    <button class="gr-wrong" id="grWrong" data-correct="0">No <span class="kk">N</span></button>
+    <button class="gr-right" id="grRight" data-correct="1">Got it <span class="kk">Space</span></button>
+  </div>
 
   <div id="jumpPanel" class="jumpPanel">
     <div class="jumpRow">
@@ -617,6 +728,96 @@
 
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <script>
+/* ============================================================================
+   OCCLUSION ENGINE (subset) — pure logic, no DOM. Parses {{answer|hint}} spans,
+   drives a reveal/grade session, and tracks which answers have ever been missed
+   (the "wrong ledger" behind the red flags). This is the same tested engine
+   used by the standalone Occlusion Studio; only the supplement-building glue
+   differs here because the reader has to build supplements from BOTH a mother
+   session and a supplement session — see commitWrongsToSupplement() below in
+   the main app script, which replaces engine.js's ordinal-based supplement
+   builder with an answer-text-based one that works for either source.
+   ========================================================================= */
+(function (root) {
+  'use strict';
+  var _seq = 0;
+  function uid(prefix){ return (prefix||'id') + '_' + Date.now().toString(36) + '_' + (_seq++).toString(36); }
+
+  var OCC_RE = /\{\{([^{}|]+?)(?:\|([^{}]*?))?\}\}/g;
+  // {{fig: Fig 7.4}} is BoreScroll's existing figure-reference syntax, not an
+  // occlusion — it must be left alone for formatBody's own {{fig: ...}} handler.
+  function isFigRef(inner){ return /^\s*fig\s*:/i.test(inner); }
+  function parseCardOcclusions(card){
+    var body = String(card.body || '');
+    var segments = [], occlusions = [], last = 0, m, ordinal = 0;
+    OCC_RE.lastIndex = 0;
+    while ((m = OCC_RE.exec(body)) !== null){
+      if (isFigRef(m[1])) continue; // not an occlusion — leave as plain text, formatBody handles it
+      if (m.index > last) segments.push({ type:'text', value: body.slice(last, m.index) });
+      var answer = (m[1]||'').trim(), hint = m[2] != null ? m[2].trim() : '';
+      var key = card.id + '#' + ordinal;
+      var occ = { key:key, cardId:card.id, answer:answer, hint:hint, ordinal:ordinal };
+      occlusions.push(occ);
+      segments.push({ type:'occ', key:key, answer:answer, hint:hint, ordinal:ordinal });
+      ordinal++; last = OCC_RE.lastIndex;
+    }
+    if (last < body.length) segments.push({ type:'text', value: body.slice(last) });
+    return { segments:segments, occlusions:occlusions };
+  }
+  function deckOcclusions(cards){
+    var all = [];
+    (cards||[]).forEach(function(c){ parseCardOcclusions(c).occlusions.forEach(function(o){ all.push(o); }); });
+    return all;
+  }
+  function countOcclusions(cards){ return deckOcclusions(cards).length; }
+
+  function startSession(cards){
+    var occ = deckOcclusions(cards), status = {};
+    occ.forEach(function(o){ status[o.key] = 'hidden'; });
+    return { id:uid('sess'), startedAt:Date.now(), total:occ.length, status:status,
+      order:occ.map(function(o){ return o.key; }), wrongKeys:[] };
+  }
+  function reveal(session, key){ if (session.status[key] === 'hidden') session.status[key] = 'revealed'; return session; }
+  function mark(session, key, correct){
+    if (session.status[key] !== 'revealed' && session.status[key] !== 'wrong') return session;
+    if (correct){ session.status[key] = 'right'; }
+    else { session.status[key] = 'wrong'; if (session.wrongKeys.indexOf(key) === -1) session.wrongKeys.push(key); }
+    return session;
+  }
+  function isComplete(session){
+    return session.order.every(function(k){ var s = session.status[k]; return s === 'right' || s === 'wrong'; });
+  }
+  function sessionProgress(session){
+    var resolved=0, right=0, wrong=0;
+    session.order.forEach(function(k){ var s=session.status[k]; if(s==='right'){resolved++;right++;} else if(s==='wrong'){resolved++;wrong++;} });
+    return { total:session.total, resolved:resolved, right:right, wrong:wrong, remaining:session.total-resolved };
+  }
+  function rebuildWrongLedger(entry){
+    var set = {};
+    (entry.wrongLedger||[]).forEach(function(k){ set[k]=true; });
+    (entry.supplements||[]).forEach(function(supp){
+      (supp.cards||[]).forEach(function(sc){
+        var motherId = sc.srcCardId;
+        var parsed = parseCardOcclusions({ id:motherId, body:sc.body });
+        parsed.occlusions.forEach(function(o){ set['answer:'+motherId+':'+o.answer] = true; });
+      });
+    });
+    entry.wrongLedger = Object.keys(set);
+    return entry.wrongLedger;
+  }
+  function isFlagged(entry, cardId, answer){
+    return (entry.wrongLedger||[]).indexOf('answer:'+cardId+':'+answer) !== -1;
+  }
+  function clearWrongLedger(entry){ entry.wrongLedger = []; return entry; }
+
+  root.OcclusionEngine = {
+    uid:uid, parseCardOcclusions:parseCardOcclusions, deckOcclusions:deckOcclusions, countOcclusions:countOcclusions,
+    startSession:startSession, reveal:reveal, mark:mark, isComplete:isComplete, sessionProgress:sessionProgress,
+    rebuildWrongLedger:rebuildWrongLedger, isFlagged:isFlagged, clearWrongLedger:clearWrongLedger
+  };
+})(window);
+</script>
+<script>
 (function(){
   const uploadScreen = document.getElementById('uploadScreen');
   const readerScreen = document.getElementById('readerScreen');
@@ -647,6 +848,41 @@
   const notifStatusLabel = document.getElementById('notifStatusLabel');
   const notifEnableBtn = document.getElementById('notifEnableBtn');
   const copyPromptBtn = document.getElementById('copyPromptBtn');
+  const studyBtn = document.getElementById('studyBtn');
+  const studyBtnLabel = document.getElementById('studyBtnLabel');
+  const cramBtn = document.getElementById('cramBtn');
+  const cramBtnLabel = document.getElementById('cramBtnLabel');
+  const cramBarWrap = document.getElementById('cramBarWrap');
+  const cramBarEl = document.getElementById('cramBar');
+  const cramTimeEl = document.getElementById('cramTime');
+  const studyHintEl = document.getElementById('studyHint');
+  const graderEl = document.getElementById('grader');
+  const grWrongBtn = document.getElementById('grWrong');
+  const grRightBtn = document.getElementById('grRight');
+  const OccE = window.OcclusionEngine;
+
+  // ---- occlusion / study / cram state ----
+  let currentEntry = null;      // the persisted library entry backing the deck on screen
+  let isSupplementView = false; // true when the on-screen deck IS a supplement
+  let readerMode = 'read';      // 'read' | 'study' | 'cram'
+  let session = null;           // active occlusion session (OccE.startSession result)
+  let graderKey = null;         // occlusion key currently awaiting a grade
+  let sessionSupplement = null; // the supplement this STUDY session has been writing wrongs into
+  let cramEndsAt = 0;
+  let cramTimer = null;
+  let currentPos = 1;       // the card currently most in view, kept in sync by onScroll
+  let cramSeen = null;      // Set of positions seen this cram session
+  const CRAM_MS = 15*60*1000;
+
+  // Build the {id, body} shape the occlusion engine expects from a reader card.
+  // Mother cards use their idx; a card viewed inside a supplement carries its
+  // own srcCardId already (set when the supplement was built) — engine session
+  // keys for a supplement session use the supplement card's OWN id (so reveal/
+  // grade state is self-contained), while wrong-commits resolve back to the
+  // mother card via srcCardId (see commitWrongsToSupplement).
+  function engineCard(card){
+    return { id: card.srcCardId ? card.id : ('c' + card.idx), body: card.body || '' };
+  }
 
   let cardIndexList = []; // [{pos, title, body, el, card, hydrated}] — pos is the 1-based on-screen card number
   let currentDeck = null;
@@ -655,17 +891,65 @@
   let hydrationObserver = null;
 
   const HEART_SVG = '<svg viewBox="0 0 24 24" class="heartIcon"><path d="M12 20.3l-1.45-1.32C5.4 14.24 2 11.16 2 7.5 2 4.42 4.42 2 7.5 2c1.74 0 3.41.81 4.5 2.09C13.09 2.81 14.76 2 16.5 2 19.58 2 22 4.42 22 7.5c0 3.66-3.4 6.74-8.55 11.48L12 20.3z"/></svg>';
+  const FLAG_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V4s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="4"/></svg>';
+
+  // Render one occlusion span according to the current reader mode:
+  //   read / cram -> always plain, visible text (dotted underline hints it's testable)
+  //   study       -> hidden box / revealed / right (re-occluded, quiet) / wrong (standout)
+  function occSpanHtml(seg, card){
+    const mid = card.srcCardId || ('c' + card.idx);
+    const flagged = !!(currentEntry && OccE.isFlagged(currentEntry, mid, seg.answer));
+    if (readerMode !== 'study'){
+      return '<span class="occ plain" data-key="'+escapeHtml(seg.key)+'">'+escapeHtml(seg.answer)+'</span>';
+    }
+    const st = session ? session.status[seg.key] : 'hidden';
+    if (st === 'revealed') return '<span class="occ revealed" data-key="'+escapeHtml(seg.key)+'">'+escapeHtml(seg.answer)+'</span>';
+    if (st === 'right') return '<span class="occ right" data-key="'+escapeHtml(seg.key)+'"></span>';
+    if (st === 'wrong') return '<span class="occ wrong" data-key="'+escapeHtml(seg.key)+'">'+escapeHtml(seg.answer)+'</span>';
+    const hint = seg.hint ? '<span class="hintlbl">'+escapeHtml(seg.hint)+'</span>' : '';
+    const pad = '&nbsp;'.repeat(Math.max(3, Math.min(14, seg.answer.length)));
+    return '<span class="occ box'+(flagged?' flagged':'')+'" data-key="'+escapeHtml(seg.key)+'" role="button" tabindex="0">'+hint+pad+'</span>';
+  }
+
+  // Wraps formatBody(): occlusion segments are pulled out to sentinels first
+  // (same stash-and-restore pattern formatBody already uses internally for
+  // code/tables/etc.) so markdown rendering never sees — and can't mangle —
+  // {{answer|hint}} syntax, then swapped back in as the right span variant.
+  function renderOccludedBody(card){
+    const parsed = OccE.parseCardOcclusions(engineCard(card));
+    if (!parsed.occlusions.length) return formatBody(card.body);
+    const blocks = {};
+    let i = 0;
+    const withSentinels = parsed.segments.map(seg => {
+      if (seg.type === 'text') return seg.value;
+      const token = '\u0000O' + (i++) + '\u0000';
+      blocks[token] = occSpanHtml(seg, card);
+      return token;
+    }).join('');
+    let html = formatBody(withSentinels);
+    html = html.replace(/\u0000O(\d+)\u0000/g, m => blocks[m] || '');
+    return html;
+  }
+
+  function cardHasFlag(card){
+    if (!currentEntry) return false;
+    const mid = card.srcCardId || ('c' + card.idx);
+    const parsed = OccE.parseCardOcclusions(engineCard(card));
+    return parsed.occlusions.some(o => OccE.isFlagged(currentEntry, mid, o.answer));
+  }
 
   // Build the full inner HTML for a card panel (used on hydration).
   function cardPanelHTML(card, pos){
+    const flagged = cardHasFlag(card);
     return '<div class="panel">' +
       '<button type="button" class="heartBadge" data-pos="'+pos+'" aria-label="Like this card">'+HEART_SVG+'</button>' +
       '<div class="eyebrow">' +
         (card.tag ? '<span class="section-tag">'+escapeHtml(String(card.tag))+'</span>' : '') +
         '<span class="idx-tag">'+String(card.idx).padStart(2,'0')+'</span>' +
+        (flagged ? '<span class="weak-flag">'+FLAG_SVG+'weak spot</span>' : '') +
       '</div>' +
       '<h2>'+escapeHtml(card.title)+'</h2>' +
-      '<div class="body">'+formatBody(card.body)+'</div>' +
+      '<div class="body">'+renderOccludedBody(card)+'</div>' +
       '<div class="heartBurst" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 20.3l-1.45-1.32C5.4 14.24 2 11.16 2 7.5 2 4.42 4.42 2 7.5 2c1.74 0 3.41.81 4.5 2.09C13.09 2.81 14.76 2 16.5 2 19.58 2 22 4.42 22 7.5c0 3.66-3.4 6.74-8.55 11.48L12 20.3z"/></svg></div>' +
     '</div>';
   }
@@ -683,6 +967,27 @@
       try { mermaid.run({ nodes: mermaids }); } catch(e){ /* diagram lib unavailable — code block remains */ }
     }
   }
+
+  // Re-render just a hydrated card's body + flag badge in place (no full panel
+  // rebuild, so heart-badge listeners and scroll position are untouched). Used
+  // when the study/cram mode changes, or right after a grade updates flags.
+  function reRenderCardBody(item){
+    if (!item || !item.hydrated) return;
+    const bodyEl = item.el.querySelector('.body');
+    if (bodyEl) bodyEl.innerHTML = renderOccludedBody(item.card);
+    const eyebrow = item.el.querySelector('.eyebrow');
+    if (eyebrow){
+      const flagged = cardHasFlag(item.card);
+      let flagEl = eyebrow.querySelector('.weak-flag');
+      if (flagged && !flagEl){ eyebrow.insertAdjacentHTML('beforeend', '<span class="weak-flag">'+FLAG_SVG+'weak spot</span>'); }
+      else if (!flagged && flagEl){ flagEl.remove(); }
+    }
+    const mermaids = item.el.querySelectorAll('.mermaid');
+    if (mermaids.length && window.mermaid && mermaidInited){
+      try { mermaid.run({ nodes: mermaids }); } catch(e){ /* diagram lib unavailable */ }
+    }
+  }
+  function reRenderAllHydrated(){ cardIndexList.forEach(reRenderCardBody); }
 
   // IntersectionObserver-driven hydration: hydrate any card within ~2 screens
   // of the viewport. Also proactively hydrates the immediate neighbours of the
@@ -764,10 +1069,39 @@
       pos: existing ? existing.pos : 1,
       addedAt: existing ? existing.addedAt : Date.now(),
       updatedAt: Date.now(),
+      images: existing && existing.images ? existing.images : {},
+      wrongLedger: existing && existing.wrongLedger ? existing.wrongLedger : [],
+      supplements: existing && existing.supplements ? existing.supplements : [],
     };
     saveLibrary(lib);
     localStorage.setItem(LAST_OPENED_KEY, deck.title);
     return lib[deck.title];
+  }
+  // Fetch the persisted library entry for a deck title, migrating in the
+  // occlusion fields (images/wrongLedger/supplements) for decks saved before
+  // this feature existed. Creates the entry if it's missing entirely (e.g. a
+  // deck opened straight from a pasted/uploaded file that hasn't been through
+  // upsertLibraryEntry yet in this session).
+  function getOrCreateEntry(deck){
+    const lib = loadLibrary();
+    let entry = lib[deck.title];
+    let changed = false;
+    if (!entry){
+      entry = { title: deck.title, cards: deck.cards, pos:1, addedAt:Date.now(), updatedAt:Date.now(),
+        images:{}, wrongLedger:[], supplements:[] };
+      lib[deck.title] = entry; changed = true;
+    } else {
+      if (!entry.images){ entry.images = {}; changed = true; }
+      if (!entry.wrongLedger){ entry.wrongLedger = []; changed = true; }
+      if (!entry.supplements){ entry.supplements = []; changed = true; }
+    }
+    if (changed) saveLibrary(lib);
+    return entry;
+  }
+  function persistEntry(entry){
+    const lib = loadLibrary();
+    lib[entry.title] = entry;
+    saveLibrary(lib);
   }
   function saveLibraryPos(deckTitle, pos){
     const lib = loadLibrary();
@@ -795,22 +1129,50 @@
       return;
     }
     libraryBlock.hidden = false;
-    libraryList.innerHTML = entries.map(e => `
+    libraryList.innerHTML = entries.map(e => {
+      const supps = e.supplements || [];
+      const suppRows = supps.length ? `
+        <div class="libSupps">
+          ${supps.map((s, i) => `
+            <div class="libSuppRow" data-supp-title="${escapeHtml(e.title)}" data-supp-idx="${i}">
+              <span class="lsDot"></span>
+              <span class="lsName">${escapeHtml(s.name)}</span>
+              <span class="lsMeta">${s.cards.length} card${s.cards.length===1?'':'s'} \u00b7 ${relativeTime(s.createdAt)}</span>
+            </div>`).join('')}
+        </div>` : '';
+      return `
       <div class="libraryRow" data-title="${escapeHtml(e.title)}">
         <div class="lbMain">
-          <div class="lbTitle">${escapeHtml(e.title)}</div>
+          <div class="lbTitle">${escapeHtml(e.title)}${supps.length ? `<span class="supplementBadge">${supps.length} supplement${supps.length===1?'':'s'}</span>` : ''}</div>
           <div class="lbMeta">${e.cards.length} cards · card ${e.pos} · ${relativeTime(e.updatedAt)}</div>
         </div>
         <button type="button" class="lbRemove" data-remove="${escapeHtml(e.title)}" aria-label="Remove from library">×</button>
       </div>
-    `).join('');
+      ${suppRows}
+    `;
+    }).join('');
   }
   function openLibraryEntry(title){
     const lib = loadLibrary();
     const entry = lib[title];
     if (!entry) return;
+    let changed = false;
+    if (!entry.images){ entry.images = {}; changed = true; }
+    if (!entry.wrongLedger){ entry.wrongLedger = []; changed = true; }
+    if (!entry.supplements){ entry.supplements = []; changed = true; }
+    if (changed) saveLibrary(lib);
     localStorage.setItem(LAST_OPENED_KEY, title);
-    buildReader({ title: entry.title, cards: entry.cards }, entry.pos);
+    buildReader({ title: entry.title, cards: entry.cards }, entry.pos, { entry, isSupplement:false });
+  }
+  // Open a supplement — a mistakes-only deck attached to its mother, with no
+  // separate library entry of its own ("without the need of creating new
+  // folders"). Flags/wrong-ledger checks still resolve against the mother.
+  function openSupplement(motherEntry, supp){
+    const cards = (supp.cards||[]).map((sc, i) => ({
+      idx: i + 1, tag: sc.tag || '', title: sc.title || '', body: sc.body || '',
+      id: sc.id, srcCardId: sc.srcCardId
+    }));
+    buildReader({ title: supp.name + ' \u2014 ' + motherEntry.title, cards }, 1, { entry: motherEntry, isSupplement:true });
   }
   function removeLibraryEntry(title){
     const lib = loadLibrary();
@@ -1157,8 +1519,8 @@ Here is the source document to convert:
       showError('Parsed the file, but found zero cards. Check the format against the hint below.');
       return;
     }
-    upsertLibraryEntry(deck); // adds to the persistent library, doesn't overwrite previous decks
-    buildReader(deck); // starts fresh at the top — a newly loaded file has no "where you left off"
+    const entry = upsertLibraryEntry(deck); // adds to the persistent library, doesn't overwrite previous decks
+    buildReader(deck, 1, { entry, isSupplement:false }); // starts fresh at the top — a newly loaded file has no "where you left off"
   }
 
   function showError(msg){
@@ -1167,7 +1529,20 @@ Here is the source document to convert:
   }
   function hideError(){ errMsg.style.display = 'none'; }
 
-  function buildReader(deck, resumePos){
+  function buildReader(deck, resumePos, entryCtx){
+    entryCtx = entryCtx || {};
+    currentEntry = entryCtx.entry || getOrCreateEntry(deck);
+    isSupplementView = !!entryCtx.isSupplement;
+    // opening any deck ends whatever session/cram was running on the previous one
+    readerMode = 'read'; session = null; graderKey = null; sessionSupplement = null;
+    currentPos = resumePos || 1;
+    stopCramTimer();
+    hideGrader();
+    cramBarWrap.classList.remove('show');
+    cramTimeEl.classList.remove('show');
+    studyHintEl.style.display = 'none';
+    updateStudyCramButtons();
+
     main.innerHTML = '';
     deckTitleEl.childNodes[0].textContent = deck.title + ' ';
     hcount.textContent = '— ' + deck.cards.length + ' cards —';
@@ -1247,6 +1622,10 @@ Here is the source document to convert:
       const section = main.children[Math.min(Math.max(idx - 1, 0), totalSections - 1)];
       const pos = section && section.dataset.pos ? parseInt(section.dataset.pos, 10) : null;
       if (pos) countLabel.textContent = pos + ' / ' + deck.cards.length;
+      if (pos){
+        currentPos = pos;
+        if (readerMode === 'cram' && cramSeen) cramSeen.add(pos);
+      }
 
       // a short double-buzz the moment you cross a milestone card's threshold —
       // fires once per crossing, not on every scroll tick while lingering there.
@@ -1360,6 +1739,267 @@ Here is the source document to convert:
     if (e.target.closest('.heartBadge')) return;
     likeFromDoubleTap(e.target);
   });
+
+  /* ============================================================================
+     OCCLUSION STUDY SESSION
+     ========================================================================= */
+  function updateStudyCramButtons(){
+    studyBtn.classList.toggle('on', readerMode === 'study');
+    studyBtnLabel.textContent = readerMode === 'study' ? 'End session' : 'Study';
+    cramBtn.classList.toggle('on', readerMode === 'cram');
+    cramBtnLabel.textContent = readerMode === 'cram' ? 'Stop' : 'Cram';
+    studyHintEl.style.display = (readerMode === 'study' && session && OccE.sessionProgress(session).resolved === 0) ? 'block' : 'none';
+  }
+
+  function startStudySession(){
+    if (readerMode === 'cram') stopCram();
+    const cards = currentDeck.cards;
+    const occ = [];
+    cards.forEach(card => { OccE.parseCardOcclusions(engineCard(card)).occlusions.forEach(o => occ.push(o)); });
+    const status = {};
+    occ.forEach(o => { status[o.key] = 'hidden'; });
+    session = { id: OccE.uid('sess'), total: occ.length, status, order: occ.map(o => o.key), wrongKeys: [] };
+    sessionSupplement = null;
+    readerMode = 'study';
+    hideGrader();
+    updateStudyCramButtons();
+    reRenderAllHydrated();
+  }
+  function endStudySession(){
+    readerMode = 'read';
+    session = null; graderKey = null; sessionSupplement = null;
+    hideGrader();
+    updateStudyCramButtons();
+    reRenderAllHydrated();
+  }
+  function finishStudySession(){
+    const pr = OccE.sessionProgress(session);
+    if (currentEntry) persistEntry(currentEntry);
+    showSessionSummary(pr);
+  }
+  function showSessionSummary(pr){
+    const made = pr.wrong > 0;
+    let box = document.getElementById('sessionSummary');
+    if (!box){
+      box = document.createElement('div');
+      box.id = 'sessionSummary';
+      box.className = 'summaryToast';
+      document.body.appendChild(box);
+    }
+    box.innerHTML = `
+      <h4>Session complete</h4>
+      <div class="sumStats"><span class="sr">${pr.right} right</span><span class="sw">${pr.wrong} missed</span><span>of ${pr.total}</span></div>
+      ${made ? '<p class="sumSub">Missed cards saved to a supplement for fast revision.</p>' : ''}
+      <div class="sumActions">
+        ${made ? '<button id="sumOpenSupp" class="sumPrime">Open supplement</button>' : ''}
+        <button id="sumAgain">Study again</button>
+        <button id="sumClose">Back to reading</button>
+      </div>`;
+    box.classList.add('show');
+    document.getElementById('sumClose').onclick = () => { box.classList.remove('show'); endStudySession(); };
+    document.getElementById('sumAgain').onclick = () => { box.classList.remove('show'); startStudySession(); };
+    const sb = document.getElementById('sumOpenSupp');
+    if (sb) sb.onclick = () => {
+      box.classList.remove('show');
+      endStudySession();
+      if (currentEntry && currentEntry.supplements.length) openSupplement(currentEntry, currentEntry.supplements[currentEntry.supplements.length - 1]);
+    };
+  }
+
+  // Resolve which occlusion segment a session key refers to, by finding the
+  // card in the current view whose engine id matches the key's prefix.
+  function resolveKey(key){
+    const cardId = key.slice(0, key.lastIndexOf('#'));
+    for (const card of currentDeck.cards){
+      if (engineCard(card).id === cardId){
+        const parsed = OccE.parseCardOcclusions(engineCard(card));
+        const seg = parsed.occlusions.find(o => o.key === key);
+        if (seg) return { card, seg };
+      }
+    }
+    return null;
+  }
+
+  function onOcclusionClick(key){
+    if (!session) return;
+    const st = session.status[key];
+    if (st === 'hidden'){ OccE.reveal(session, key); reRenderAllHydrated(); showGrader(key); }
+    else if (st === 'revealed'){ showGrader(key); }
+  }
+
+  function showGrader(key){
+    graderKey = key;
+    const el = main.querySelector('.occ[data-key="' + cssEscape(key) + '"]');
+    if (!el){ hideGrader(); return; }
+    const r = el.getBoundingClientRect();
+    graderEl.style.left = (r.left + r.width/2) + 'px';
+    graderEl.style.top = (r.bottom + 6) + 'px';
+    graderEl.classList.add('show');
+  }
+  function hideGrader(){ graderKey = null; graderEl.classList.remove('show'); }
+  function cssEscape(s){ return String(s).replace(/[^a-zA-Z0-9_-]/g, ch => '\\' + ch); }
+
+  function gradeCurrent(correct){
+    if (!graderKey || !session) return;
+    const key = graderKey;
+    OccE.mark(session, key, correct);
+    if (!correct){
+      const resolved = resolveKey(key);
+      if (resolved){
+        const motherIdx = resolved.card.srcCardId ? parseInt(resolved.card.srcCardId.slice(1), 10) : resolved.card.idx;
+        commitWrongToSupplement(motherIdx, resolved.seg.answer, resolved.seg.hint);
+      }
+    }
+    hideGrader();
+    reRenderAllHydrated();
+    if (OccE.isComplete(session)) finishStudySession();
+  }
+
+  // Answer-text-based supplement builder. Works uniformly whether the wrong
+  // answer came from studying the mother deck OR a supplement, because it
+  // always rebuilds from the MOTHER card's full body and matches by the
+  // answer's literal text rather than by ordinal position — ordinals inside a
+  // trimmed supplement body don't line up with the mother's, so ordinal
+  // matching would silently occlude the wrong term. One supplement is created
+  // per browser session (sessionSupplement), named by the mother's running count.
+  function commitWrongToSupplement(motherIdx, answer, hint){
+    if (!currentEntry) return;
+    currentEntry.supplements = currentEntry.supplements || [];
+    let supp = sessionSupplement;
+    if (!supp){
+      const n = currentEntry.supplements.length + 1;
+      supp = { id: OccE.uid('supp'), name: 'Supplement ' + n, createdAt: Date.now(), cards: [] };
+      currentEntry.supplements.push(supp);
+      sessionSupplement = supp;
+    }
+    const motherCardId = 'c' + motherIdx;
+    const motherCard = currentEntry.cards.find(c => c.idx === motherIdx);
+    if (!motherCard) return;
+    let suppCard = supp.cards.find(c => c.srcCardId === motherCardId);
+    const wrongAnswers = new Set(suppCard ? OccE.parseCardOcclusions({ id: motherCardId, body: suppCard.body }).occlusions.map(o => o.answer) : []);
+    wrongAnswers.add(answer);
+    const parsed = OccE.parseCardOcclusions({ id: motherCardId, body: motherCard.body });
+    const body = parsed.segments.map(seg => {
+      if (seg.type === 'text') return seg.value;
+      return wrongAnswers.has(seg.answer) ? (seg.hint ? `{{${seg.answer}|${seg.hint}}}` : `{{${seg.answer}}}`) : seg.answer;
+    }).join('');
+    if (suppCard) suppCard.body = body;
+    else supp.cards.push({ id: OccE.uid('sc'), srcCardId: motherCardId, tag: motherCard.tag || '', title: motherCard.title || '', body });
+    OccE.rebuildWrongLedger(currentEntry);
+    persistEntry(currentEntry);
+  }
+
+  main.addEventListener('click', (e) => {
+    if (readerMode !== 'study') return;
+    const box = e.target.closest('.occ');
+    if (box && box.dataset.key) onOcclusionClick(box.dataset.key);
+  });
+  main.addEventListener('keydown', (e) => {
+    if (readerMode !== 'study') return;
+    const box = e.target.closest && e.target.closest('.occ.box');
+    if (box && (e.key === 'Enter' || e.key === ' ')){ e.preventDefault(); onOcclusionClick(box.dataset.key); }
+  });
+  graderEl.addEventListener('mousedown', (e) => e.preventDefault());
+  graderEl.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (b) gradeCurrent(b.dataset.correct === '1' || b === grRightBtn);
+  });
+
+  // Spacebar rhythm: nothing revealed -> reveal the first hidden occlusion
+  // (sentence order) on the card currently in view; something revealed ->
+  // grade it "Got it" and reveal the next hidden occlusion, advancing to the
+  // next card automatically once the current one is exhausted.
+  function firstHiddenOnCard(card){
+    const occ = OccE.parseCardOcclusions(engineCard(card)).occlusions;
+    for (const o of occ){ if (session.status[o.key] === 'hidden') return o.key; }
+    return null;
+  }
+  function revealNextHidden(){
+    if (!session) return;
+    const cards = currentDeck.cards;
+    let startIdx = cards.findIndex(c => c.idx === currentPos);
+    if (startIdx < 0) startIdx = 0;
+    let key = firstHiddenOnCard(cards[startIdx]);
+    if (!key){
+      for (let d = 1; d <= cards.length; d++){
+        const idx = (startIdx + d) % cards.length;
+        const k = firstHiddenOnCard(cards[idx]);
+        if (k){ key = k; scrollToPos(cards[idx].idx); break; }
+      }
+    }
+    if (!key){ if (OccE.isComplete(session)) finishStudySession(); return; }
+    OccE.reveal(session, key);
+    reRenderAllHydrated();
+    showGrader(key);
+  }
+  function spaceAdvance(){
+    if (!session) return;
+    if (graderKey){ gradeCurrentKeepAdvancing(); return; }
+    revealNextHidden();
+  }
+  function gradeCurrentKeepAdvancing(){
+    const key = graderKey;
+    OccE.mark(session, key, true);
+    hideGrader();
+    reRenderAllHydrated();
+    if (OccE.isComplete(session)){ finishStudySession(); return; }
+    revealNextHidden();
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (readerScreen.style.display !== 'block') return;
+    const tag = (e.target && e.target.tagName || '').toLowerCase();
+    const typing = tag === 'input' || tag === 'textarea';
+    if (readerMode === 'study' && !typing){
+      if (e.key === ' ' || e.code === 'Space'){ e.preventDefault(); spaceAdvance(); return; }
+      if (graderKey && (e.key === 'n' || e.key === 'N' || e.key === 'ArrowLeft')){ e.preventDefault(); gradeCurrent(false); return; }
+      if (graderKey && (e.key === 'y' || e.key === 'Y' || e.key === 'ArrowRight' || e.key === 'Enter')){ e.preventDefault(); gradeCurrent(true); return; }
+    }
+  });
+
+  studyBtn.addEventListener('click', () => { if (readerMode === 'study') endStudySession(); else startStudySession(); });
+
+  /* ============================================================================
+     CRAM MODE — 15-minute timed read-through. Occlusions stay fully visible
+     (same plain/dotted style as normal reading); a depleting bar stays pinned
+     at the top of the screen for the whole session.
+     ========================================================================= */
+  function startCram(){
+    if (readerMode === 'study') endStudySession();
+    readerMode = 'cram';
+    cramEndsAt = Date.now() + CRAM_MS;
+    cramSeen = new Set([currentPos]);
+    cramBarWrap.classList.add('show');
+    cramTimeEl.classList.add('show');
+    updateStudyCramButtons();
+    reRenderAllHydrated();
+    clearInterval(cramTimer);
+    cramTimer = setInterval(tickCram, 250);
+    tickCram();
+  }
+  function stopCram(){
+    stopCramTimer();
+    if (readerMode === 'cram'){
+      readerMode = 'read';
+      cramBarWrap.classList.remove('show');
+      cramTimeEl.classList.remove('show');
+      updateStudyCramButtons();
+      reRenderAllHydrated();
+    }
+  }
+  function stopCramTimer(){ clearInterval(cramTimer); cramTimer = null; }
+  function tickCram(){
+    if (readerMode !== 'cram') { stopCramTimer(); return; }
+    const left = Math.max(0, cramEndsAt - Date.now());
+    const frac = Math.max(0, Math.min(1, left / CRAM_MS));
+    cramBarEl.style.width = (frac * 100) + '%';
+    cramBarEl.classList.toggle('low', frac < 0.15 && frac > 0);
+    cramBarEl.classList.toggle('out', left <= 0);
+    const s = Math.ceil(left / 1000), mm = Math.floor(s / 60), ss = s % 60;
+    cramTimeEl.textContent = left <= 0 ? 'time up' : (mm + ':' + String(ss).padStart(2, '0'));
+    cramTimeEl.classList.toggle('out', left <= 0);
+  }
+  cramBtn.addEventListener('click', () => { if (readerMode === 'cram') stopCram(); else startCram(); });
 
   function buildMilestoneCard(pos, remaining, total){
     const sec = document.createElement('section');
@@ -1544,9 +2184,8 @@ Here is the source document to convert:
     milestoneEveryInput.value = milestoneEvery;
     localStorage.setItem(MILESTONE_KEY, String(milestoneEvery));
     if (currentDeck){
-      const lib = loadLibrary();
-      const resume = (lib[currentDeck.title] && lib[currentDeck.title].pos) || 1;
-      buildReader(currentDeck, resume);
+      const resume = isSupplementView ? 1 : ((loadLibrary()[currentDeck.title] && loadLibrary()[currentDeck.title].pos) || 1);
+      buildReader(currentDeck, resume, { entry: currentEntry, isSupplement: isSupplementView });
     }
   });
 
@@ -1770,6 +2409,14 @@ Here is the source document to convert:
       removeLibraryEntry(removeBtn.dataset.remove);
       return;
     }
+    const suppRow = e.target.closest('.libSuppRow');
+    if (suppRow){
+      const lib = loadLibrary();
+      const entry = lib[suppRow.dataset.suppTitle];
+      const supp = entry && entry.supplements && entry.supplements[parseInt(suppRow.dataset.suppIdx, 10)];
+      if (entry && supp) openSupplement(entry, supp);
+      return;
+    }
     const row = e.target.closest('.libraryRow');
     if (row) openLibraryEntry(row.dataset.title);
   });
@@ -1782,7 +2429,12 @@ Here is the source document to convert:
     const lib = loadLibrary();
     const entry = lib[lastOpened];
     if (entry){
-      try { buildReader({ title: entry.title, cards: entry.cards }, entry.pos); }
+      let changed = false;
+      if (!entry.images){ entry.images = {}; changed = true; }
+      if (!entry.wrongLedger){ entry.wrongLedger = []; changed = true; }
+      if (!entry.supplements){ entry.supplements = []; changed = true; }
+      if (changed) saveLibrary(lib);
+      try { buildReader({ title: entry.title, cards: entry.cards }, entry.pos, { entry, isSupplement:false }); }
       catch(e){ /* ignore, show upload screen */ }
     }
   }
