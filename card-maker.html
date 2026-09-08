@@ -249,7 +249,7 @@ input.deckName:focus{ outline:none; }
   'use strict';
 
   var DB_NAME = 'boreScrollDB';
-  var DB_VERSION = 1;
+  var DB_VERSION = 2; // v2 adds the "folders" store
   var dbPromise = null;
 
   function openDB(){
@@ -260,6 +260,7 @@ input.deckName:focus{ outline:none; }
         var db = req.result;
         if (!db.objectStoreNames.contains('decks')) db.createObjectStore('decks', { keyPath: 'title' });
         if (!db.objectStoreNames.contains('images')) db.createObjectStore('images', { keyPath: 'id' });
+        if (!db.objectStoreNames.contains('folders')) db.createObjectStore('folders', { keyPath: 'id' });
       };
       req.onsuccess = function () { resolve(req.result); };
       req.onerror = function () { reject(req.error); };
@@ -355,12 +356,53 @@ input.deckName:focus{ outline:none; }
   function clearAll(){
     return openDB().then(function (db) {
       return new Promise(function (resolve, reject) {
-        var tx = db.transaction(['decks', 'images'], 'readwrite');
+        var tx = db.transaction(['decks', 'images', 'folders'], 'readwrite');
         tx.objectStore('decks').clear();
         tx.objectStore('images').clear();
+        tx.objectStore('folders').clear();
         tx.oncomplete = function () { resolve(); };
         tx.onerror = function () { reject(tx.error); };
       });
+    });
+  }
+
+  /* ---- folders — single level (folders don't contain other folders),
+     matching a Drive-style "put decks in a folder" without recursive nesting
+     complexity. Deck-to-folder assignment lives on the deck record itself
+     (deck.folderId), not on the folder, so moving a deck is a single
+     one-record write. ---- */
+  function listFolders(){ return idbGetAll('folders'); }
+  function createFolder(name){
+    var id = 'f_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,7);
+    var folder = { id: id, name: (name||'Untitled folder').trim() || 'Untitled folder', createdAt: Date.now(), updatedAt: Date.now() };
+    return idbPut('folders', folder).then(function () { return folder; });
+  }
+  function renameFolder(id, name){
+    return idbGet('folders', id).then(function (folder) {
+      if (!folder) return false;
+      folder.name = (name||'').trim() || folder.name;
+      folder.updatedAt = Date.now();
+      return idbPut('folders', folder).then(function(){ return true; });
+    });
+  }
+  // Deletes a folder. Any decks inside it (and cascades to their images) are
+  // deleted too — callers are responsible for warning the user about this
+  // (there's no trash to fall back on, so the UI-level confirmation is what
+  // protects against mistakes here, not this function).
+  function deleteFolder(id){
+    return listDecks().then(function (all) {
+      var mine = all.filter(function (d) { return d.folderId === id; });
+      return mine.reduce(function (p, d) { return p.then(function () { return deleteDeck(d.title); }); }, Promise.resolve());
+    }).then(function () { return idbDelete('folders', id); });
+  }
+  function deckCountInFolder(id, allDecks){
+    return (allDecks || []).filter(function (d) { return d.folderId === id; }).length;
+  }
+  function moveDeckToFolder(title, folderId){
+    return getDeck(title).then(function (entry) {
+      if (!entry) return false;
+      entry.folderId = folderId || null;
+      return saveDeck(entry);
     });
   }
 
@@ -478,6 +520,7 @@ input.deckName:focus{ outline:none; }
         return imgChain.then(function () {
           delete entry.images; // bytes now live in the images store
           entry.title = entry.title || title;
+          if (entry.folderId === undefined) entry.folderId = null; // migrated decks start at root
           return saveDeck(entry).then(function () { deckCount++; });
         });
       });
@@ -491,6 +534,8 @@ input.deckName:focus{ outline:none; }
   root.BoreStorage = {
     openDB: openDB, idbPut: idbPut, idbGet: idbGet, idbGetAll: idbGetAll, idbGetAllKeys: idbGetAllKeys, idbDelete: idbDelete,
     listDecks: listDecks, getDeck: getDeck, saveDeck: saveDeck, renameDeck: renameDeck, deleteDeck: deleteDeck, clearAll: clearAll,
+    listFolders: listFolders, createFolder: createFolder, renameFolder: renameFolder, deleteFolder: deleteFolder,
+    deckCountInFolder: deckCountInFolder, moveDeckToFolder: moveDeckToFolder,
     saveImage: saveImage, getImage: getImage, deleteImage: deleteImage, listDeckImageKeys: listDeckImageKeys, gcUnusedImages: gcUnusedImages,
     formatBytes: formatBytes, estimateStorage: estimateStorage, requestPersistence: requestPersistence,
     migrateFromLocalStorage: migrateFromLocalStorage, dataUrlToBlob: dataUrlToBlob, measureBlobDims: measureBlobDims,
