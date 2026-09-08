@@ -1155,16 +1155,19 @@ input.deckName:focus{ outline:none; }
     if(state.active>=entry.cards.length) state.active=entry.cards.length-1;
     scheduleSave(); renderSpines(); renderCard();
   }
-  function newDeck(){
-    var title=prompt('Name this deck:','Untitled Deck'); if(title===null) return;
-    title=title.trim()||'Untitled Deck';
+  function createBlankDeck(title){
     var existingTitles = deckTitles.map(function(d){ return d.title; });
     var final=title, n=2; while(existingTitles.indexOf(final)!==-1){ final=title+' '+n; n++; }
     var entry={ title:final, cards:[{idx:1,tag:'',title:'',body:''}], pos:1, addedAt:Date.now(), updatedAt:Date.now(), wrongLedger:[], supplements:[] };
-    BoreStorage.saveDeck(entry).then(function(){ return refreshDeckTitles(); }).then(function(){
+    return BoreStorage.saveDeck(entry).then(function(){ return refreshDeckTitles(); }).then(function(){
       cachedEntry = entry; state.deckTitle=final; state.active=0; state.editMode='visual';
-      renderShell();
+      return entry;
     });
+  }
+  function newDeck(){
+    var title=prompt('Name this deck:','Untitled Deck'); if(title===null) return;
+    title=title.trim()||'Untitled Deck';
+    createBlankDeck(title).then(function(){ renderShell(); });
   }
 
   /* ============================================================================
@@ -1356,10 +1359,13 @@ input.deckName:focus{ outline:none; }
      INIT
      ========================================================================= */
   (function boot(){
+    var forceNew = new URLSearchParams(location.search).get('new') === '1';
+    if (forceNew && history.replaceState) history.replaceState(null, '', location.pathname); // don't re-trigger on refresh
     BoreStorage.migrateFromLocalStorage().catch(function(){}).then(function(){
       BoreStorage.requestPersistence();
       return refreshDeckTitles();
     }).then(function(){
+      if (forceNew) return createBlankDeck('Untitled Deck').then(function(entry){ return entry.title; });
       if(!deckTitles.length){
         var entry={ title:'Untitled Deck', cards:[{idx:1,tag:'',title:'',body:''}], pos:1, addedAt:Date.now(), updatedAt:Date.now(), wrongLedger:[], supplements:[] };
         return BoreStorage.saveDeck(entry).then(function(){ return refreshDeckTitles(); }).then(function(){ return entry.title; });
