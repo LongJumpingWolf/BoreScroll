@@ -41,14 +41,24 @@
 
   /* ---------- upload screen ---------- */
   #uploadScreen{
-    min-height:100vh; min-height:100dvh; display:flex; align-items:center; justify-content:center;
+    min-height:100vh; min-height:100dvh; display:flex; align-items:flex-start; justify-content:center;
     padding:calc(24px + env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) calc(20px + env(safe-area-inset-left));
     position:relative; z-index:1; width:100%;
   }
+  .uploadWrap{
+    width:100%; max-width:1360px; display:grid; grid-template-columns:440px 1fr; gap:22px; align-items:start;
+    margin:0 auto;
+  }
+  @media (max-width:980px){ .uploadWrap{ grid-template-columns:1fr; max-width:640px; } }
   .uploadCard{
-    width:100%; max-width:560px; background:var(--card);
+    width:100%; background:var(--card);
     border:1px solid var(--line); border-radius:24px; padding:38px 34px;
     box-shadow:0 20px 44px -28px rgba(0,0,0,0.28);
+  }
+  .libPanel{
+    width:100%; background:var(--card); border:1px solid var(--line); border-radius:24px;
+    padding:26px 26px 22px; box-shadow:0 20px 44px -28px rgba(0,0,0,0.28);
+    display:flex; flex-direction:column; min-height:520px;
   }
   .eyebrow2{
     font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.14em;
@@ -100,8 +110,6 @@
   .formatHint b{ color:var(--gold); font-weight:500; }
   .errMsg{ color:#f97316; font-size:12.5px; margin-top:10px; display:none; }
 
-  .libraryBlock{ margin-top:22px; padding-top:20px; border-top:1px solid var(--line); }
-
   .promptBlock{ margin-top:22px; padding-top:20px; border-top:1px solid var(--line); }
   .copyPromptBtn{
     width:100%; display:flex; align-items:center; justify-content:center; gap:10px;
@@ -121,43 +129,92 @@
     margin:10px 0 0; font-family:'IBM Plex Mono',monospace; font-size:11px;
     color:var(--ink-dim); line-height:1.6; text-align:center;
   }
-  .libraryHead{
-    display:flex; align-items:center; justify-content:space-between;
-    font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.08em;
-    text-transform:uppercase; color:var(--ink-dim); margin-bottom:12px;
-  }
-  .libraryHead button{
-    font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:none; letter-spacing:0;
-    color:var(--ink-dim); border:1px solid var(--line); border-radius:100px; padding:5px 11px; background:transparent;
-    cursor:pointer; touch-action:manipulation;
-  }
-  .libraryHead button:hover{ color:var(--eosin); border-color:var(--eosin-dim); }
-  .libraryList{ display:flex; flex-direction:column; gap:8px; max-height:260px; overflow-y:auto; }
-  .storageRow{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:12px;
-    padding-top:12px; border-top:1px solid var(--line); }
-  .storageInfo{ font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--ink-dim); }
+
+  /* ---- Card Editor promo tile ---- */
+  .editorPromo{ display:flex; align-items:center; gap:14px; padding:16px 18px; border-radius:16px;
+    background:linear-gradient(135deg, rgba(249,115,22,0.10), rgba(37,99,235,0.06)); border:1px solid var(--eosin-dim);
+    text-decoration:none; margin-bottom:18px; transition:.13s; }
+  .editorPromo:hover{ border-color:var(--eosin); background:linear-gradient(135deg, rgba(249,115,22,0.16), rgba(37,99,235,0.09)); }
+  .editorPromoIcon{ flex-shrink:0; width:42px; height:42px; border-radius:12px; background:#fff; border:1px solid var(--eosin-dim);
+    display:flex; align-items:center; justify-content:center; color:var(--eosin); }
+  .editorPromoIcon svg{ width:19px; height:19px; }
+  .editorPromoBody{ flex:1; min-width:0; }
+  .editorPromoTitle{ font-family:'Fraunces',serif; font-weight:600; font-size:16px; color:var(--ink); }
+  .editorPromoSub{ font-family:'Inter',sans-serif; font-size:12px; color:var(--ink-dim); margin-top:2px; line-height:1.4; }
+  .editorPromoArrow{ flex-shrink:0; width:18px; height:18px; color:var(--eosin); }
+
+  /* ---- library toolbar + breadcrumb ---- */
+  .libToolbar{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; flex-wrap:wrap; }
+  .libCrumbs{ display:flex; align-items:center; gap:6px; font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--ink-dim); flex-wrap:wrap; min-width:0; }
+  .libCrumbs .crumb{ cursor:pointer; padding:4px 8px; border-radius:7px; white-space:nowrap; }
+  .libCrumbs .crumb:hover{ background:rgba(249,115,22,0.08); color:var(--eosin); }
+  .libCrumbs .crumb.current{ color:var(--ink); font-weight:500; cursor:default; }
+  .libCrumbs .crumb.current:hover{ background:none; }
+  .libCrumbs .sep{ color:var(--line); }
+  .libToolbarActions{ display:flex; gap:8px; flex-shrink:0; }
+  .libToolBtn{ display:inline-flex; align-items:center; gap:6px; font-family:'IBM Plex Mono',monospace; font-size:10.5px;
+    color:var(--ink-dim); border:1px solid var(--line); border-radius:100px; padding:7px 12px; background:transparent;
+    cursor:pointer; touch-action:manipulation; white-space:nowrap; }
+  .libToolBtn svg{ width:13px; height:13px; }
+  .libToolBtn:hover{ color:var(--eosin); border-color:var(--eosin-dim); }
+  .libToolBtn.danger:hover{ color:#c0392b; border-color:rgba(192,57,43,0.4); }
+
+  /* ---- grid of folder/deck tiles ---- */
+  .libGrid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:12px; flex:1; align-content:start; }
+  .libEmpty{ font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--ink-dim); text-align:center; padding:40px 20px; }
+  .tile{ position:relative; border:1px solid var(--line); border-radius:14px; padding:14px 14px 12px; cursor:pointer;
+    background:#fff; transition:.13s; display:flex; flex-direction:column; touch-action:manipulation; }
+  .tile:hover{ border-color:var(--eosin-dim); box-shadow:0 10px 24px -16px rgba(0,0,0,0.25); }
+  .tile.dragging{ opacity:0.4; }
+  .tile.dropTarget{ border-color:var(--eosin); background:rgba(249,115,22,0.07); box-shadow:0 0 0 2px rgba(249,115,22,0.25); }
+  .tile-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:6px; margin-bottom:10px; }
+  .tile-icon{ width:34px; height:34px; border-radius:9px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .tile-icon.folder{ background:rgba(240,168,63,0.14); color:var(--gold); }
+  .tile-icon.deck{ background:rgba(37,99,235,0.10); color:var(--hema); }
+  .tile-icon svg{ width:17px; height:17px; }
+  .tile-menu{ flex-shrink:0; width:26px; height:26px; border-radius:8px; display:flex; align-items:center; justify-content:center;
+    color:var(--ink-dim); background:transparent; border:none; }
+  .tile-menu:hover{ background:rgba(0,0,0,0.06); color:var(--ink); }
+  .tile-menu svg{ width:15px; height:15px; }
+  .tile-title{ font-family:'Fraunces',serif; font-size:14.5px; color:var(--ink); line-height:1.3; overflow:hidden;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; margin-bottom:4px; }
+  .tile-meta{ font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--ink-dim); margin-top:auto; padding-top:6px; }
+  .tile-badge{ display:inline-flex; align-items:center; gap:4px; font-family:'IBM Plex Mono',monospace; font-size:9px; color:#c0392b;
+    border:1px solid rgba(192,57,43,0.35); border-radius:100px; padding:2px 7px; margin-top:6px; }
+
+  /* ---- context menu popover ---- */
+  .tileMenu{ position:fixed; z-index:120; display:none; min-width:150px; background:#fff; border:1px solid var(--line);
+    border-radius:12px; padding:6px; box-shadow:0 20px 44px -20px rgba(0,0,0,0.35); }
+  .tileMenu.show{ display:block; }
+  .tileMenu button{ display:flex; align-items:center; gap:9px; width:100%; text-align:left; font-family:'Inter',sans-serif;
+    font-size:12.5px; color:var(--ink); border:none; background:transparent; padding:9px 10px; border-radius:8px; min-height:0; }
+  .tileMenu button:hover{ background:rgba(249,115,22,0.08); }
+  .tileMenu button svg{ width:14px; height:14px; flex-shrink:0; color:var(--ink-dim); }
+  .tileMenu button.danger{ color:#c0392b; }
+  .tileMenu button.danger svg{ color:#c0392b; }
+  .tileMenu .menuSep{ height:1px; background:var(--line); margin:5px 4px; }
+  .tileMenu .moveList{ max-height:180px; overflow-y:auto; }
+
+  /* ---- storage bar ---- */
+  .storageRow{ display:flex; align-items:center; gap:10px; margin-top:16px; padding-top:14px; border-top:1px solid var(--line); flex-wrap:wrap; }
+  .storageBarWrap{ flex:1; min-width:80px; height:6px; border-radius:100px; background:rgba(0,0,0,0.06); overflow:hidden; }
+  .storageBar{ height:100%; width:0%; background:linear-gradient(90deg, var(--gold), var(--eosin)); border-radius:100px; transition:width .3s; }
+  .storageInfo{ font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--ink-dim); white-space:nowrap; }
   .gcBtn{ font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--ink-dim); border:1px solid var(--line);
     border-radius:100px; padding:5px 11px; background:transparent; cursor:pointer; white-space:nowrap; }
   .gcBtn:hover{ color:var(--eosin); border-color:var(--eosin-dim); }
-  .libraryRow{
-    display:flex; align-items:center; gap:10px; padding:11px 12px; border-radius:12px;
-    background:rgba(255,255,255,0.03); border:1px solid transparent; cursor:pointer;
-  }
-  .libraryRow:hover{ background:rgba(249,115,22,0.07); border-color:var(--eosin-dim); }
-  .libraryRow .lbMain{ flex:1; min-width:0; }
-  .libraryRow .lbTitle{
-    font-family:'Fraunces',serif; font-size:15px; color:var(--ink);
-    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-  }
-  .libraryRow .lbMeta{
-    font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-dim); margin-top:2px;
-  }
-  .libraryRow .lbRemove{
-    flex-shrink:0; width:26px; height:26px; border-radius:50%; border:none; background:transparent;
-    color:var(--ink-dim); font-size:15px; cursor:pointer; touch-action:manipulation;
-  }
-  .libraryRow .lbRemove:hover{ color:var(--eosin); background:rgba(249,115,22,0.1); }
 
+  /* ---- typed delete confirmation ---- */
+  .deleteModal .confirmBox{ max-width:380px; }
+  .deleteWarnBox{ background:rgba(192,57,43,0.06); border:1px solid rgba(192,57,43,0.25); border-radius:10px;
+    padding:10px 12px; font-size:12px; color:#8a2e26; margin-bottom:14px; line-height:1.5; }
+  .deleteTypeLabel{ font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.06em; text-transform:uppercase;
+    color:var(--ink-dim); margin-bottom:6px; display:block; }
+  .deleteTypeInput{ width:100%; border:1px solid var(--line); border-radius:9px; padding:10px 12px; font-family:'IBM Plex Mono',monospace;
+    font-size:13px; color:var(--ink); margin-bottom:14px; box-sizing:border-box; }
+  .deleteTypeInput:focus{ outline:none; border-color:#c0392b; }
+  .deleteConfirmBtn{ background:#c0392b; border-color:#c0392b; color:#fff; }
+  .deleteConfirmBtn:disabled{ background:var(--line); border-color:var(--line); color:var(--ink-dim); cursor:not-allowed; filter:none; }
   /* ---------- reader ---------- */
   #readerScreen{ display:none; position:relative; z-index:1; }
   header.top{
@@ -747,62 +804,88 @@
 <body>
 
 <div id="uploadScreen">
-  <div class="uploadCard">
-    <div class="eyebrow2">Shorts Reader</div>
-    <h1>Drop in your deck.</h1>
-    <p class="lede">Loads a <b>.md/.txt</b> slide file or a <b>.json</b> card array and turns it into a one-idea-per-screen vertical scroll — same reader shell, any deck. Nothing you load ever leaves your browser. Once a deck's open, hit <b>/</b> or the search icon top-right to jump to a card number or search its contents.</p>
+  <div class="uploadWrap">
+    <div class="uploadCard">
+      <div class="eyebrow2">Shorts Reader</div>
+      <h1>Drop in your deck.</h1>
+      <p class="lede">Loads a <b>.md/.txt</b> slide file or a <b>.json</b> card array and turns it into a one-idea-per-screen vertical scroll — same reader shell, any deck. Nothing you load ever leaves your browser. Once a deck's open, hit <b>/</b> or the search icon top-right to jump to a card number or search its contents.</p>
 
-    <div class="dropzone" id="dropzone">
-      <div class="dz-title">Click or drag a file here</div>
-      <div class="dz-sub">.md · .txt · .json</div>
-      <input type="file" id="fileInput" accept=".md,.txt,.json,text/markdown,text/plain,application/json">
-    </div>
-
-    <div class="or-row">or paste raw text</div>
-    <textarea id="pasteBox" placeholder="Paste .md slide text or a JSON array here…"></textarea>
-    <div class="btnRow">
-      <button class="primary" id="renderPasteBtn">Render pasted content</button>
-    </div>
-    <div class="errMsg" id="errMsg"></div>
-
-    <div class="libraryBlock" id="libraryBlock" hidden>
-      <div class="libraryHead">
-        <span>Your library</span>
-        <button type="button" id="clearBtn">Clear library</button>
+      <div class="dropzone" id="dropzone">
+        <div class="dz-title">Click or drag a file here</div>
+        <div class="dz-sub">.md · .txt · .json</div>
+        <input type="file" id="fileInput" accept=".md,.txt,.json,text/markdown,text/plain,application/json">
       </div>
-      <div id="libraryList" class="libraryList"></div>
-      <div class="storageRow">
-        <span id="storageInfo" class="storageInfo"></span>
-        <button type="button" id="gcImagesBtn" class="gcBtn" title="Delete images no longer referenced by any card">Clean unused images</button>
+
+      <div class="or-row">or paste raw text</div>
+      <textarea id="pasteBox" placeholder="Paste .md slide text or a JSON array here…"></textarea>
+      <div class="btnRow">
+        <button class="primary" id="renderPasteBtn">Render pasted content</button>
       </div>
-    </div>
+      <div class="errMsg" id="errMsg"></div>
 
-    <div class="promptBlock">
-      <button type="button" class="primary copyPromptBtn" id="copyPromptBtn">
-        <svg viewBox="0 0 24 24" class="promptCopyIcon"><rect x="9" y="9" width="12" height="12" rx="2.5"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg>
-        <svg viewBox="0 0 24 24" class="promptCheckIcon"><path d="M4 12l5 5L20 6"></path></svg>
-        <span class="promptBtnLabel">Copy Shorts-Maker prompt</span>
-      </button>
-      <p class="promptHint">Copies the full rules + format spec for turning a chapter into a deck — paste it into Claude/ChatGPT/DeepSeek along with your source text.</p>
-      <p class="promptHint" style="margin-top:12px;">Or build a deck by hand in the <a href="card-maker.html" style="color:var(--eosin);text-decoration:underline;text-underline-offset:2px;">Card Maker</a> — a visual editor with live preview, autosave, and image embedding.</p>
-    </div>
+      <div class="promptBlock">
+        <button type="button" class="primary copyPromptBtn" id="copyPromptBtn">
+          <svg viewBox="0 0 24 24" class="promptCopyIcon"><rect x="9" y="9" width="12" height="12" rx="2.5"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg>
+          <svg viewBox="0 0 24 24" class="promptCheckIcon"><path d="M4 12l5 5L20 6"></path></svg>
+          <span class="promptBtnLabel">Copy Shorts-Maker prompt</span>
+        </button>
+        <p class="promptHint">Copies the full rules + format spec for turning a chapter into a deck — paste it into Claude/ChatGPT/DeepSeek along with your source text.</p>
+      </div>
 
-    <div class="formatHint">
-      <b>Markdown format —</b> blocks separated by a line of <b>---</b>, each starting with<br>
-      <b>## SLIDE 1: Title</b> followed by a paragraph.<br><br>
-      <b>JSON format —</b> an array of objects, each with a title-ish key<br>
-      (<b>title</b> / <b>t</b> / <b>heading</b>) and a content-ish key (<b>content</b> / <b>c</b> / <b>body</b>).<br>
-      Optional <b>tag</b> or <b>section</b> key renders as a small pill on the card.<br><br>
-      <b>Inside a card body, this all works —</b><br>
-      <b>**bold**</b>, <b>*italic*</b>, <b>__underline__</b>, <b>`code`</b><br>
-      <b>- bullet</b> / <b>1. numbered</b> lists, and <b>&gt; blockquotes</b><br>
-      <b>markdown tables</b> — a header row, a <b>|---|---|</b> separator, then rows<br>
-      <b>{{fig: Fig 7.4}}</b> — renders a "see textbook" reference chip<br>
+      <div class="formatHint">
+        <b>Markdown format —</b> blocks separated by a line of <b>---</b>, each starting with<br>
+        <b>## SLIDE 1: Title</b> followed by a paragraph.<br><br>
+        <b>JSON format —</b> an array of objects, each with a title-ish key<br>
+        (<b>title</b> / <b>t</b> / <b>heading</b>) and a content-ish key (<b>content</b> / <b>c</b> / <b>body</b>).<br>
+        Optional <b>tag</b> or <b>section</b> key renders as a small pill on the card.<br><br>
+        <b>Inside a card body, this all works —</b><br>
+        <b>**bold**</b>, <b>*italic*</b>, <b>__underline__</b>, <b>`code`</b><br>
+        <b>- bullet</b> / <b>1. numbered</b> lists, and <b>&gt; blockquotes</b><br>
+        <b>markdown tables</b> — a header row, a <b>|---|---|</b> separator, then rows<br>
+        <b>{{fig: Fig 7.4}}</b> — renders a "see textbook" reference chip<br>
+
       <b>```mermaid</b> fenced blocks — real flowcharts/diagrams (Mermaid syntax)<br>
       <b>```html</b> fenced blocks — paste raw HTML straight through, e.g. a table
     </div>
   </div>
+
+  <div class="libPanel">
+    <a class="editorPromo" id="editorPromo" href="card-maker.html">
+      <div class="editorPromoIcon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+      </div>
+      <div class="editorPromoBody">
+        <div class="editorPromoTitle">Open Card Editor</div>
+        <div class="editorPromoSub">Build a deck by hand — visual editor, live preview, autosave, image embedding.</div>
+      </div>
+      <svg class="editorPromoArrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+    </a>
+
+    <div class="libToolbar">
+      <div class="libCrumbs" id="libCrumbs"></div>
+      <div class="libToolbarActions">
+        <button type="button" id="newFolderBtn" class="libToolBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/><path d="M12 11v6M9 14h6"/></svg>
+          New folder
+        </button>
+        <button type="button" id="clearBtn" class="libToolBtn danger">Clear library</button>
+      </div>
+    </div>
+
+    <div class="libGrid" id="libGrid"></div>
+    <div class="libEmpty" id="libEmpty" hidden>Your library is empty. Load a deck on the left to get started.</div>
+
+    <div class="storageRow">
+      <div class="storageBarWrap"><div class="storageBar" id="storageBar"></div></div>
+      <span id="storageInfo" class="storageInfo"></span>
+      <button type="button" id="gcImagesBtn" class="gcBtn" title="Delete images no longer referenced by any card">Clean unused images</button>
+    </div>
+  </div>
+  </div>
 </div>
+
+<div class="confirmModal" id="confirmModal"><div class="confirmBox" id="confirmBox"></div></div>
+<div class="tileMenu" id="tileMenu"></div>
 
 <div id="readerScreen">
   <header class="top">
@@ -849,7 +932,6 @@
   </div>
 
   <div class="cramResume" id="cramResume"></div>
-  <div class="confirmModal" id="confirmModal"><div class="confirmBox" id="confirmBox"></div></div>
 
   <div class="imgLightbox" id="imgLightbox">
     <div class="lbStage" id="lbStage"><img id="lbImg" alt=""></div>
@@ -957,7 +1039,7 @@
   'use strict';
 
   var DB_NAME = 'boreScrollDB';
-  var DB_VERSION = 1;
+  var DB_VERSION = 2; // v2 adds the "folders" store
   var dbPromise = null;
 
   function openDB(){
@@ -968,6 +1050,7 @@
         var db = req.result;
         if (!db.objectStoreNames.contains('decks')) db.createObjectStore('decks', { keyPath: 'title' });
         if (!db.objectStoreNames.contains('images')) db.createObjectStore('images', { keyPath: 'id' });
+        if (!db.objectStoreNames.contains('folders')) db.createObjectStore('folders', { keyPath: 'id' });
       };
       req.onsuccess = function () { resolve(req.result); };
       req.onerror = function () { reject(req.error); };
@@ -1063,12 +1146,53 @@
   function clearAll(){
     return openDB().then(function (db) {
       return new Promise(function (resolve, reject) {
-        var tx = db.transaction(['decks', 'images'], 'readwrite');
+        var tx = db.transaction(['decks', 'images', 'folders'], 'readwrite');
         tx.objectStore('decks').clear();
         tx.objectStore('images').clear();
+        tx.objectStore('folders').clear();
         tx.oncomplete = function () { resolve(); };
         tx.onerror = function () { reject(tx.error); };
       });
+    });
+  }
+
+  /* ---- folders — single level (folders don't contain other folders),
+     matching a Drive-style "put decks in a folder" without recursive nesting
+     complexity. Deck-to-folder assignment lives on the deck record itself
+     (deck.folderId), not on the folder, so moving a deck is a single
+     one-record write. ---- */
+  function listFolders(){ return idbGetAll('folders'); }
+  function createFolder(name){
+    var id = 'f_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,7);
+    var folder = { id: id, name: (name||'Untitled folder').trim() || 'Untitled folder', createdAt: Date.now(), updatedAt: Date.now() };
+    return idbPut('folders', folder).then(function () { return folder; });
+  }
+  function renameFolder(id, name){
+    return idbGet('folders', id).then(function (folder) {
+      if (!folder) return false;
+      folder.name = (name||'').trim() || folder.name;
+      folder.updatedAt = Date.now();
+      return idbPut('folders', folder).then(function(){ return true; });
+    });
+  }
+  // Deletes a folder. Any decks inside it (and cascades to their images) are
+  // deleted too — callers are responsible for warning the user about this
+  // (there's no trash to fall back on, so the UI-level confirmation is what
+  // protects against mistakes here, not this function).
+  function deleteFolder(id){
+    return listDecks().then(function (all) {
+      var mine = all.filter(function (d) { return d.folderId === id; });
+      return mine.reduce(function (p, d) { return p.then(function () { return deleteDeck(d.title); }); }, Promise.resolve());
+    }).then(function () { return idbDelete('folders', id); });
+  }
+  function deckCountInFolder(id, allDecks){
+    return (allDecks || []).filter(function (d) { return d.folderId === id; }).length;
+  }
+  function moveDeckToFolder(title, folderId){
+    return getDeck(title).then(function (entry) {
+      if (!entry) return false;
+      entry.folderId = folderId || null;
+      return saveDeck(entry);
     });
   }
 
@@ -1186,6 +1310,7 @@
         return imgChain.then(function () {
           delete entry.images; // bytes now live in the images store
           entry.title = entry.title || title;
+          if (entry.folderId === undefined) entry.folderId = null; // migrated decks start at root
           return saveDeck(entry).then(function () { deckCount++; });
         });
       });
@@ -1199,6 +1324,8 @@
   root.BoreStorage = {
     openDB: openDB, idbPut: idbPut, idbGet: idbGet, idbGetAll: idbGetAll, idbGetAllKeys: idbGetAllKeys, idbDelete: idbDelete,
     listDecks: listDecks, getDeck: getDeck, saveDeck: saveDeck, renameDeck: renameDeck, deleteDeck: deleteDeck, clearAll: clearAll,
+    listFolders: listFolders, createFolder: createFolder, renameFolder: renameFolder, deleteFolder: deleteFolder,
+    deckCountInFolder: deckCountInFolder, moveDeckToFolder: moveDeckToFolder,
     saveImage: saveImage, getImage: getImage, deleteImage: deleteImage, listDeckImageKeys: listDeckImageKeys, gcUnusedImages: gcUnusedImages,
     formatBytes: formatBytes, estimateStorage: estimateStorage, requestPersistence: requestPersistence,
     migrateFromLocalStorage: migrateFromLocalStorage, dataUrlToBlob: dataUrlToBlob, measureBlobDims: measureBlobDims,
@@ -1307,9 +1434,9 @@
   const pasteBox = document.getElementById('pasteBox');
   const renderPasteBtn = document.getElementById('renderPasteBtn');
   const clearBtn = document.getElementById('clearBtn');
-  const libraryBlock = document.getElementById('libraryBlock');
-  const libraryList = document.getElementById('libraryList');
+  const newFolderBtn = document.getElementById('newFolderBtn');
   const storageInfoEl = document.getElementById('storageInfo');
+  const storageBarEl = document.getElementById('storageBar');
   const gcImagesBtn = document.getElementById('gcImagesBtn');
   const errMsg = document.getElementById('errMsg');
   const main = document.getElementById('main');
@@ -1380,6 +1507,15 @@
   const HEART_SVG = '<svg viewBox="0 0 24 24" class="heartIcon"><path d="M12 20.3l-1.45-1.32C5.4 14.24 2 11.16 2 7.5 2 4.42 4.42 2 7.5 2c1.74 0 3.41.81 4.5 2.09C13.09 2.81 14.76 2 16.5 2 19.58 2 22 4.42 22 7.5c0 3.66-3.4 6.74-8.55 11.48L12 20.3z"/></svg>';
   const FLAG_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V4s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="4"/></svg>';
   const PENCIL_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
+  const FOLDER_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>';
+  const DECK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="14" height="18" rx="2"/><path d="M8 8h6M8 12h6M8 16h3"/></svg>';
+  const DOTS_SVG = '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>';
+  const PENCIL_SVG_SM = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
+  const TRASH_SVG_SM = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>';
+  const MOVE_SVG_SM = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9l-3 3 3 3"/><path d="M9 5l3-3 3 3"/><path d="M15 19l3 3 3-3"/><path d="M19 9l3 3-3 3"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></svg>';
+  const FOLDER_SVG_SM = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>';
+  const ROOT_SVG_SM = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>';
+  const FLAG_SVG_SM = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V4s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="4"/></svg>';
 
   // Render one occlusion span according to the current reader mode:
   //   read / cram -> always plain, visible text (dotted underline hints it's testable)
@@ -1621,36 +1757,193 @@
     if (days < 30) return days + 'd ago';
     return new Date(ts).toLocaleDateString();
   }
+  let libFolderId = null; // current folder shown in the library grid; null = root ("My Library")
+
+  /* ---- modal helpers: typed delete confirmation + rename prompt, sharing
+     the #confirmModal container already used by cram's start/stop confirms */
+  function showTypedDelete(title, warningHtml, onConfirm){
+    const box = document.getElementById('confirmBox');
+    const modal = document.getElementById('confirmModal');
+    modal.classList.add('deleteModal');
+    box.innerHTML = '<h4>'+escapeHtml(title)+'</h4>'+
+      '<div class="deleteWarnBox">'+warningHtml+'</div>'+
+      '<label class="deleteTypeLabel">Type DELETE to confirm</label>'+
+      '<input type="text" class="deleteTypeInput" id="deleteTypeInput" autocomplete="off" placeholder="DELETE">'+
+      '<div class="cfActions"><button id="cfCancel">Cancel</button><button class="prime deleteConfirmBtn" id="cfOk" disabled>Delete</button></div>';
+    modal.classList.add('show');
+    const input = document.getElementById('deleteTypeInput');
+    const okBtn = document.getElementById('cfOk');
+    function checkMatch(){ okBtn.disabled = input.value.trim().toLowerCase() !== 'delete'; }
+    input.addEventListener('input', checkMatch);
+    function close(){ modal.classList.remove('show'); modal.classList.remove('deleteModal'); }
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !okBtn.disabled){ e.preventDefault(); close(); onConfirm(); } });
+    document.getElementById('cfCancel').onclick = close;
+    okBtn.onclick = () => { if (okBtn.disabled) return; close(); onConfirm(); };
+    setTimeout(() => input.focus(), 50);
+  }
+  function showRenamePrompt(title, currentValue, onSave){
+    const box = document.getElementById('confirmBox');
+    const modal = document.getElementById('confirmModal');
+    box.innerHTML = '<h4>'+escapeHtml(title)+'</h4>'+
+      '<input type="text" class="deleteTypeInput" id="renameInput" autocomplete="off" value="'+escapeHtml(currentValue)+'">'+
+      '<div class="cfActions"><button id="cfCancel">Cancel</button><button class="prime" id="cfOk">Save</button></div>';
+    modal.classList.add('show');
+    const input = document.getElementById('renameInput');
+    function close(){ modal.classList.remove('show'); }
+    function submit(){ const v=input.value.trim(); if(!v || v===currentValue){ close(); return; } close(); onSave(v); }
+    document.getElementById('cfCancel').onclick = close;
+    document.getElementById('cfOk').onclick = submit;
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter'){ e.preventDefault(); submit(); } else if (e.key === 'Escape'){ close(); } });
+    setTimeout(() => { input.focus(); input.select(); }, 50);
+  }
+
+  /* ---- generic tile context menu popover ---- */
+  function openTileMenu(x, y, items){
+    const menu = document.getElementById('tileMenu');
+    menu.innerHTML = items.map((it,i) => it.sep ? '<div class="menuSep"></div>' :
+      '<button type="button" data-i="'+i+'" class="'+(it.danger?'danger':'')+'">'+(it.icon||'')+'<span>'+escapeHtml(it.label)+'</span></button>'
+    ).join('');
+    const vw = window.innerWidth, vh = window.innerHeight;
+    menu.style.left = Math.min(x, vw-190) + 'px';
+    menu.classList.add('show');
+    const h = menu.offsetHeight;
+    menu.style.top = Math.min(y, vh-h-10) + 'px';
+    Array.from(menu.querySelectorAll('button[data-i]')).forEach(b => {
+      b.onclick = (e) => { e.stopPropagation(); closeTileMenu(); items[+b.dataset.i].onClick(); };
+    });
+  }
+  function closeTileMenu(){ const m=document.getElementById('tileMenu'); if(m) m.classList.remove('show'); }
+  document.addEventListener('click', (e) => { if (!e.target.closest('.tileMenu') && !e.target.closest('.tile-menu')) closeTileMenu(); });
+  document.addEventListener('scroll', closeTileMenu, true);
+
   async function renderLibrary(){
-    const entries = (await BoreStorage.listDecks()).sort((a,b) => b.updatedAt - a.updatedAt);
-    if (!entries.length){
-      libraryBlock.hidden = true;
-      return;
+    const [folders, allDecks] = await Promise.all([BoreStorage.listFolders(), BoreStorage.listDecks()]);
+    if (libFolderId && !folders.some(f => f.id === libFolderId)) libFolderId = null; // folder was deleted elsewhere
+    renderBreadcrumb(folders);
+    const grid = document.getElementById('libGrid');
+    const emptyEl = document.getElementById('libEmpty');
+    let items = [];
+    if (libFolderId === null){
+      items = items.concat(folders.slice().sort((a,b) => a.name.localeCompare(b.name)).map(f => ({ type:'folder', data:f })));
+      items = items.concat(allDecks.filter(d => !d.folderId).sort((a,b) => b.updatedAt - a.updatedAt).map(d => ({ type:'deck', data:d })));
+    } else {
+      items = allDecks.filter(d => d.folderId === libFolderId).sort((a,b) => b.updatedAt - a.updatedAt).map(d => ({ type:'deck', data:d }));
     }
-    libraryBlock.hidden = false;
-    libraryList.innerHTML = entries.map(e => {
-      const supps = e.supplements || [];
-      const suppRows = supps.length ? `
-        <div class="libSupps">
-          ${supps.map((s, i) => `
-            <div class="libSuppRow" data-supp-title="${escapeHtml(e.title)}" data-supp-idx="${i}">
-              <span class="lsDot"></span>
-              <span class="lsName">${escapeHtml(s.name)}</span>
-              <span class="lsMeta">${s.cards.length} card${s.cards.length===1?'':'s'} \u00b7 ${relativeTime(s.createdAt)}</span>
-            </div>`).join('')}
-        </div>` : '';
-      return `
-      <div class="libraryRow" data-title="${escapeHtml(e.title)}">
-        <div class="lbMain">
-          <div class="lbTitle">${escapeHtml(e.title)}${supps.length ? `<span class="supplementBadge">${supps.length} supplement${supps.length===1?'':'s'}</span>` : ''}</div>
-          <div class="lbMeta">${e.cards.length} cards · card ${e.pos} · ${relativeTime(e.updatedAt)}</div>
-        </div>
-        <button type="button" class="lbRemove" data-remove="${escapeHtml(e.title)}" aria-label="Remove from library">×</button>
-      </div>
-      ${suppRows}
-    `;
-    }).join('');
+    if (!items.length){
+      grid.innerHTML = '';
+      emptyEl.hidden = false;
+      emptyEl.textContent = libFolderId === null ? 'Your library is empty. Load a deck on the left to get started.' : 'This folder is empty. Drag a deck here, or move one via its \u22ee menu.';
+    } else {
+      emptyEl.hidden = true;
+      grid.innerHTML = items.map(it => it.type === 'folder' ? folderTileHtml(it.data, allDecks) : deckTileHtml(it.data)).join('');
+    }
+    wireGridInteractions(folders, allDecks);
     updateStorageInfo();
+  }
+  function renderBreadcrumb(folders){
+    const el = document.getElementById('libCrumbs');
+    if (libFolderId === null){
+      el.innerHTML = '<span class="crumb current">My Library</span>';
+    } else {
+      const f = folders.find(x => x.id === libFolderId);
+      el.innerHTML = '<span class="crumb" data-root="1">My Library</span><span class="sep">/</span><span class="crumb current">'+escapeHtml(f ? f.name : 'Folder')+'</span>';
+    }
+  }
+  function folderTileHtml(f, allDecks){
+    const count = BoreStorage.deckCountInFolder(f.id, allDecks);
+    return '<div class="tile" data-folder="'+escapeHtml(f.id)+'">'+
+      '<div class="tile-top"><div class="tile-icon folder">'+FOLDER_SVG+'</div>'+
+      '<button type="button" class="tile-menu" data-folder-menu="'+escapeHtml(f.id)+'" aria-label="Folder options">'+DOTS_SVG+'</button></div>'+
+      '<div class="tile-title">'+escapeHtml(f.name)+'</div>'+
+      '<div class="tile-meta">'+count+' deck'+(count===1?'':'s')+'</div>'+
+    '</div>';
+  }
+  function deckTileHtml(e){
+    const supps = e.supplements || [];
+    return '<div class="tile" data-deck="'+escapeHtml(e.title)+'" draggable="true">'+
+      '<div class="tile-top"><div class="tile-icon deck">'+DECK_SVG+'</div>'+
+      '<button type="button" class="tile-menu" data-deck-menu="'+escapeHtml(e.title)+'" aria-label="Deck options">'+DOTS_SVG+'</button></div>'+
+      '<div class="tile-title">'+escapeHtml(e.title)+'</div>'+
+      '<div class="tile-meta">'+e.cards.length+' cards \u00b7 card '+e.pos+' \u00b7 '+relativeTime(e.updatedAt)+'</div>'+
+      (supps.length ? '<span class="tile-badge">'+FLAG_SVG_SM+supps.length+' supplement'+(supps.length===1?'':'s')+'</span>' : '') +
+    '</div>';
+  }
+  function wireGridInteractions(folders, allDecks){
+    const grid = document.getElementById('libGrid');
+    grid.querySelectorAll('.tile[data-folder]').forEach(el => {
+      const id = el.dataset.folder;
+      el.addEventListener('click', (e) => { if (e.target.closest('.tile-menu')) return; libFolderId = id; renderLibrary(); });
+      el.addEventListener('dragover', (e) => { e.preventDefault(); el.classList.add('dropTarget'); });
+      el.addEventListener('dragleave', () => el.classList.remove('dropTarget'));
+      el.addEventListener('drop', async (e) => {
+        e.preventDefault(); el.classList.remove('dropTarget');
+        const title = e.dataTransfer.getData('text/deck-title'); if (!title) return;
+        await BoreStorage.moveDeckToFolder(title, id); renderLibrary();
+      });
+    });
+    grid.querySelectorAll('.tile[data-deck]').forEach(el => {
+      const title = el.dataset.deck;
+      el.addEventListener('click', (e) => { if (e.target.closest('.tile-menu')) return; openLibraryEntry(title); });
+      el.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/deck-title', title); e.dataTransfer.effectAllowed='move'; el.classList.add('dragging'); });
+      el.addEventListener('dragend', () => el.classList.remove('dragging'));
+    });
+    const rootCrumb = document.querySelector('.crumb[data-root]');
+    if (rootCrumb){
+      rootCrumb.addEventListener('click', () => { libFolderId = null; renderLibrary(); });
+      rootCrumb.addEventListener('dragover', (e) => { e.preventDefault(); rootCrumb.classList.add('dropTarget'); });
+      rootCrumb.addEventListener('dragleave', () => rootCrumb.classList.remove('dropTarget'));
+      rootCrumb.addEventListener('drop', async (e) => {
+        e.preventDefault(); rootCrumb.classList.remove('dropTarget');
+        const title = e.dataTransfer.getData('text/deck-title'); if (!title) return;
+        await BoreStorage.moveDeckToFolder(title, null); renderLibrary();
+      });
+    }
+    grid.querySelectorAll('[data-folder-menu]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.folderMenu, f = folders.find(x => x.id === id);
+        if (!f) return;
+        const r = btn.getBoundingClientRect();
+        openTileMenu(r.left, r.bottom + 4, [
+          { label:'Rename', icon:PENCIL_SVG_SM, onClick: () => showRenamePrompt('Rename folder', f.name, async (v) => { await BoreStorage.renameFolder(id, v); renderLibrary(); }) },
+          { label:'Delete', danger:true, icon:TRASH_SVG_SM, onClick: () => {
+              const count = BoreStorage.deckCountInFolder(id, allDecks);
+              const warn = count
+                ? 'This folder contains <b>'+count+'</b> deck'+(count===1?'':'s')+'. Deleting it will permanently delete '+(count===1?'that deck':'all of them')+' — cards, study history, and images — with no way to recover them.'
+                : 'This folder is empty. It will be permanently removed.';
+              showTypedDelete('Delete "'+f.name+'"?', warn, async () => { await BoreStorage.deleteFolder(id); if (libFolderId===id) libFolderId=null; renderLibrary(); });
+            } },
+        ]);
+      });
+    });
+    grid.querySelectorAll('[data-deck-menu]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const title = btn.dataset.deckMenu, entry = allDecks.find(x => x.title === title);
+        if (!entry) return;
+        const r = btn.getBoundingClientRect();
+        const items = [
+          { label:'Rename', icon:PENCIL_SVG_SM, onClick: () => showRenamePrompt('Rename deck', title, async (v) => { await BoreStorage.renameDeck(title, v); renderLibrary(); }) },
+          { label:'Move to\u2026', icon:MOVE_SVG_SM, onClick: () => openMoveMenu(btn, title, folders) },
+        ];
+        const supps = entry.supplements || [];
+        if (supps.length){
+          items.push({ sep:true });
+          supps.forEach(s => items.push({ label:s.name, icon:FLAG_SVG_SM, onClick: () => openSupplement(entry, s) }));
+        }
+        items.push({ sep:true });
+        items.push({ label:'Delete', danger:true, icon:TRASH_SVG_SM, onClick: () => {
+          showTypedDelete('Delete "'+title+'"?', 'This deck and all its cards, study history, and images will be permanently deleted — there is no trash to recover it from.', async () => { await removeLibraryEntry(title); });
+        } });
+        openTileMenu(r.left, r.bottom + 4, items);
+      });
+    });
+  }
+  function openMoveMenu(anchorBtn, deckTitle, folders){
+    const r = anchorBtn.getBoundingClientRect();
+    const items = [{ label:'My Library (root)', icon:ROOT_SVG_SM, onClick: async () => { await BoreStorage.moveDeckToFolder(deckTitle, null); renderLibrary(); } }];
+    folders.forEach(f => items.push({ label:f.name, icon:FOLDER_SVG_SM, onClick: async () => { await BoreStorage.moveDeckToFolder(deckTitle, f.id); renderLibrary(); } }));
+    openTileMenu(r.left, r.bottom + 4, items);
   }
   async function openLibraryEntry(title){
     const entry = await BoreStorage.getDeck(title);
@@ -1685,8 +1978,12 @@
   function formatBytes(n){ return BoreStorage.formatBytes(n); }
   async function updateStorageInfo(){
     const est = await BoreStorage.estimateStorage();
-    if (est && est.usage != null && est.quota != null && storageInfoEl){
-      storageInfoEl.textContent = `${formatBytes(est.usage)} used of ~${formatBytes(est.quota)} available`;
+    if (est && est.usage != null && est.quota != null){
+      if (storageInfoEl) storageInfoEl.textContent = `${formatBytes(est.usage)} used of ~${formatBytes(est.quota)} available`;
+      if (storageBarEl){
+        const pct = est.quota > 0 ? Math.min(100, (est.usage / est.quota) * 100) : 0;
+        storageBarEl.style.width = Math.max(pct, pct > 0 ? 1.5 : 0) + '%';
+      }
     }
   }
 
@@ -3616,11 +3913,12 @@ Here is the source document to convert:
     handleRawText(pasteBox.value);
   });
 
-  clearBtn.addEventListener('click', async () => {
-    if (!confirm('Clear your entire library? This deletes every saved deck and embedded image. This cannot be undone.')) return;
-    await clearLibrary();
-    pasteBox.value = '';
-    hideError();
+  clearBtn.addEventListener('click', () => {
+    showTypedDelete('Clear your entire library?', 'This deletes every saved deck, folder, study history, and embedded image, permanently.', async () => {
+      await clearLibrary();
+      pasteBox.value = '';
+      hideError();
+    });
   });
 
   if (gcImagesBtn) gcImagesBtn.addEventListener('click', async () => {
@@ -3632,28 +3930,16 @@ Here is the source document to convert:
     updateStorageInfo();
   });
 
+  if (newFolderBtn) newFolderBtn.addEventListener('click', () => {
+    const name = prompt('Name this folder:', 'New folder');
+    if (name === null) return;
+    BoreStorage.createFolder(name).then(() => renderLibrary());
+  });
+
   swapBtn.addEventListener('click', async () => {
     readerScreen.style.display = 'none';
     uploadScreen.style.display = 'flex';
     await renderLibrary(); // library persists across "load a different file" — only Clear library wipes it
-  });
-
-  libraryList.addEventListener('click', async (e) => {
-    const removeBtn = e.target.closest('.lbRemove');
-    if (removeBtn){
-      e.stopPropagation();
-      await removeLibraryEntry(removeBtn.dataset.remove);
-      return;
-    }
-    const suppRow = e.target.closest('.libSuppRow');
-    if (suppRow){
-      const entry = await BoreStorage.getDeck(suppRow.dataset.suppTitle);
-      const supp = entry && entry.supplements && entry.supplements[parseInt(suppRow.dataset.suppIdx, 10)];
-      if (entry && supp) await openSupplement(entry, supp);
-      return;
-    }
-    const row = e.target.closest('.libraryRow');
-    if (row) await openLibraryEntry(row.dataset.title);
   });
 
   // On first load: migrate any pre-existing localStorage library into
