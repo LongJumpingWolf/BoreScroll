@@ -411,6 +411,59 @@
   .supplementBadge{ font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:#c0392b;
     border:1px solid rgba(192,57,43,0.35); border-radius:100px; padding:2px 7px; margin-left:6px; }
 
+  /* ---- per-card inline edit mode ---- */
+  .panel.editing{ box-shadow:0 0 0 2px var(--hema), 0 20px 60px -30px rgba(37,99,235,0.35); }
+  .editBadge{ position:absolute; top:18px; right:60px; z-index:2; width:36px; height:36px; border-radius:100px;
+    border:1px solid var(--line); background:#fff; color:var(--ink-dim); display:flex; align-items:center; justify-content:center; }
+  .editBadge:hover{ color:var(--hema); border-color:var(--soft-blue); }
+  .editBadge svg{ width:15px; height:15px; display:block; flex-shrink:0; }
+  .editBadge.disabled{ opacity:0.3; pointer-events:none; }
+  .editActions{ position:absolute; top:18px; right:60px; z-index:3; display:flex; gap:6px; }
+  .editActions button{ display:flex; align-items:center; gap:5px; font-family:'IBM Plex Mono',monospace; font-size:10.5px;
+    padding:8px 11px; border-radius:100px; border:1px solid var(--line); background:#fff; }
+  .editActions .edSave{ background:var(--hema); border-color:var(--hema); color:#fff; }
+  .editActions .edSave:hover{ filter:brightness(1.08); }
+  .editActions .edCancel:hover{ border-color:#c0392b; color:#c0392b; }
+  .editActions svg{ width:13px; height:13px; display:block; flex-shrink:0; }
+  .edTitle[contenteditable="true"], .edBody[contenteditable="true"]{ outline:none; cursor:text; }
+  .edTitle[contenteditable="true"]:focus, .edBody[contenteditable="true"]:focus{ background:rgba(37,99,235,0.03); border-radius:8px; }
+  .body .occ-chip{ display:inline; background:var(--soft-orange); color:var(--gold); border:1px solid rgba(240,168,63,0.5);
+    border-radius:4px; padding:0 5px; font-weight:600; }
+  .body .occ-chip.flagged{ background:rgba(192,57,43,0.1); border-color:#c0392b; color:#8a2e26; }
+
+  /* inline selection floatbar for edit mode */
+  .edFloatbar{ position:fixed; z-index:220; display:none; align-items:center; gap:2px; background:#1a1712;
+    border-radius:11px; padding:5px; box-shadow:0 16px 36px -12px rgba(0,0,0,0.5); transform:translate(-50%,-13px); }
+  .edFloatbar.show{ display:flex; }
+  .edFloatbar::after{ content:""; position:absolute; left:50%; bottom:-5px; transform:translateX(-50%) rotate(45deg);
+    width:9px; height:9px; background:#1a1712; }
+  .edfb{ min-width:30px; height:30px; padding:0 8px; border-radius:7px; color:#cfd3da; display:inline-flex;
+    align-items:center; justify-content:center; font-size:13px; border:none; background:transparent; }
+  .edfb:hover{ background:rgba(255,255,255,0.12); color:#fff; }
+  .edfb-sep{ width:1px; height:18px; background:rgba(255,255,255,0.16); margin:0 3px; }
+
+  /* ---- cram resume banner + confirm dialogs ---- */
+  .cramResume{ position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(20px); background:#1a1712;
+    color:#fff; border-radius:16px; padding:16px 20px; z-index:230; opacity:0; pointer-events:none; transition:.22s;
+    min-width:270px; max-width:88vw; box-shadow:0 20px 44px -16px rgba(0,0,0,0.6); font-family:'Inter',sans-serif; }
+  .cramResume.show{ opacity:1; pointer-events:auto; transform:translateX(-50%) translateY(0); }
+  .cramResume h4{ font-family:'Fraunces',serif; font-size:16px; font-weight:600; margin-bottom:6px; }
+  .cramResume p{ font-size:12.5px; color:#b8b3a8; margin-bottom:12px; }
+  .cramResume .crActions{ display:flex; gap:8px; }
+  .cramResume .crActions button{ font-size:12.5px; padding:9px 13px; border-radius:9px; border:1px solid rgba(255,255,255,0.16); color:#fff; background:transparent; }
+  .cramResume .crActions button:hover{ background:rgba(255,255,255,0.08); }
+  .cramResume .crActions .prime{ background:var(--gold); border-color:var(--gold); color:#1a1712; font-weight:500; }
+
+  .confirmModal{ position:fixed; inset:0; z-index:240; background:rgba(20,17,10,0.45); display:none; align-items:center; justify-content:center; padding:20px; }
+  .confirmModal.show{ display:flex; }
+  .confirmBox{ background:#fff; border-radius:16px; padding:22px; max-width:340px; width:100%; box-shadow:0 30px 60px -20px rgba(0,0,0,0.4); }
+  .confirmBox h4{ font-family:'Fraunces',serif; font-weight:600; font-size:17px; margin-bottom:8px; }
+  .confirmBox p{ font-size:13px; color:var(--ink-dim); line-height:1.55; margin-bottom:16px; }
+  .confirmBox .cfActions{ display:flex; gap:8px; justify-content:flex-end; }
+  .confirmBox .cfActions button{ font-size:12.5px; padding:9px 14px; border-radius:9px; border:1px solid var(--line); background:#fff; color:var(--ink); }
+  .confirmBox .cfActions .prime{ background:var(--gold); border-color:var(--gold); color:#1a1712; font-weight:500; }
+  .confirmBox .cfActions .prime:hover{ filter:brightness(0.96); }
+
   /* ---- session summary toast ---- */
   .summaryToast{ position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(20px);
     background:#1a1712; color:#fff; border-radius:16px; padding:16px 20px; z-index:230;
@@ -691,6 +744,18 @@
     <button class="gr-right" id="grRight" data-correct="1">Got it <span class="kk">Space</span></button>
   </div>
 
+  <div class="edFloatbar" id="edFloatbar">
+    <button class="edfb" data-cmd="bold"><b>B</b></button>
+    <button class="edfb" data-cmd="italic"><i>I</i></button>
+    <button class="edfb" data-cmd="mark">==</button>
+    <button class="edfb" data-cmd="code">&lt;/&gt;</button>
+    <span class="edfb-sep"></span>
+    <button class="edfb" data-cmd="occlude" title="Occlude (Ctrl/Cmd+O)">&#9672;</button>
+  </div>
+
+  <div class="cramResume" id="cramResume"></div>
+  <div class="confirmModal" id="confirmModal"><div class="confirmBox" id="confirmBox"></div></div>
+
   <div id="jumpPanel" class="jumpPanel">
     <div class="jumpRow">
       <input type="number" id="jumpInput" min="1" placeholder="Go to card #" inputmode="numeric">
@@ -868,8 +933,10 @@
   let session = null;           // active occlusion session (OccE.startSession result)
   let graderKey = null;         // occlusion key currently awaiting a grade
   let sessionSupplement = null; // the supplement this STUDY session has been writing wrongs into
-  let cramEndsAt = 0;
+  let cram = null;           // { remainingMs, running } while readerMode==='cram'; null otherwise
   let cramTimer = null;
+  let cramLastTickAt = 0;
+  let cramPersistCounter = 0;
   let currentPos = 1;       // the card currently most in view, kept in sync by onScroll
   let cramSeen = null;      // Set of positions seen this cram session
   const CRAM_MS = 15*60*1000;
@@ -889,9 +956,14 @@
   let likedPositions = new Set();
   let mermaidInited = false;
   let hydrationObserver = null;
+  let editingPos = null;      // the position currently in inline edit mode, or null
+  let editingBodyEl = null;   // the live contenteditable body element being edited
 
   const HEART_SVG = '<svg viewBox="0 0 24 24" class="heartIcon"><path d="M12 20.3l-1.45-1.32C5.4 14.24 2 11.16 2 7.5 2 4.42 4.42 2 7.5 2c1.74 0 3.41.81 4.5 2.09C13.09 2.81 14.76 2 16.5 2 19.58 2 22 4.42 22 7.5c0 3.66-3.4 6.74-8.55 11.48L12 20.3z"/></svg>';
   const FLAG_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V4s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="4"/></svg>';
+  const PENCIL_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
+  const CHECK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+  const XMARK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>';
 
   // Render one occlusion span according to the current reader mode:
   //   read / cram -> always plain, visible text (dotted underline hints it's testable)
@@ -941,8 +1013,10 @@
   // Build the full inner HTML for a card panel (used on hydration).
   function cardPanelHTML(card, pos){
     const flagged = cardHasFlag(card);
+    const canEdit = !isSupplementView && readerMode !== 'study';
     return '<div class="panel">' +
       '<button type="button" class="heartBadge" data-pos="'+pos+'" aria-label="Like this card">'+HEART_SVG+'</button>' +
+      (canEdit ? '<button type="button" class="editBadge" data-pos="'+pos+'" aria-label="Edit this card" title="Edit this card">'+PENCIL_SVG+'</button>' : '') +
       '<div class="eyebrow">' +
         (card.tag ? '<span class="section-tag">'+escapeHtml(String(card.tag))+'</span>' : '') +
         '<span class="idx-tag">'+String(card.idx).padStart(2,'0')+'</span>' +
@@ -973,6 +1047,7 @@
   // when the study/cram mode changes, or right after a grade updates flags.
   function reRenderCardBody(item){
     if (!item || !item.hydrated) return;
+    if (item.pos === editingPos) return; // never clobber an in-progress inline edit
     const bodyEl = item.el.querySelector('.body');
     if (bodyEl) bodyEl.innerHTML = renderOccludedBody(item.card);
     const eyebrow = item.el.querySelector('.eyebrow');
@@ -1461,6 +1536,169 @@ Here is the source document to convert:
     return html.replace(/\u0000B(\d+)\u0000/g, (m, idx) => blocks[parseInt(idx,10)]);
   }
 
+  /* ============================================================================
+     WYSIWYG EDIT SERIALIZER — markdown <-> editable HTML, for the per-card
+     inline Edit toggle. Same design as card-maker's serializer (occlusions
+     become visible chips, images become tokens, {{fig: ...}} passes through
+     untouched), kept independent so index.html has no dependency on
+     card-maker.html — both files can be dropped in on their own.
+     ========================================================================= */
+  function edInline(s){
+    let o = escapeHtml(s);
+    o = o.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+    o = o.replace(/==(.+?)==/g,'<mark>$1</mark>');
+    o = o.replace(/__(.+?)__/g,'<u>$1</u>');
+    o = o.replace(/`([^`]+)`/g,'<code>$1</code>');
+    o = o.replace(/\*(.+?)\*/g,'<em>$1</em>');
+    o = o.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g,'<a href="$2">$1</a>');
+    return o;
+  }
+  function edInlineWithOcc(s, cardId, entry){
+    const chips = []; let i = 0;
+    const withS = s.replace(/\{\{([^{}|]+?)(?:\|([^{}]*?))?\}\}/g, (m,a,h) => {
+      if (isFigRefText(a)) return m;
+      chips.push({a:a.trim(), h:(h!=null?h.trim():'')}); return '\u0000K'+(i++)+'\u0000';
+    });
+    let html = edInline(withS);
+    html = html.replace(/\u0000K(\d+)\u0000/g, (m,ix) => {
+      const c = chips[+ix];
+      const flagged = entry ? OccE.isFlagged(entry, cardId, c.a) : false;
+      return '<span class="occ-chip'+(flagged?' flagged':'')+'" data-a="'+escapeHtml(c.a)+'"'+(c.h?' data-h="'+escapeHtml(c.h)+'"':'')+' contenteditable="false">'+escapeHtml(c.a)+'</span>';
+    });
+    return html;
+  }
+  function isFigRefText(inner){ return /^\s*fig\s*:/i.test(inner); }
+  function edSplitRow(l){ let t=l.trim(); if(t.startsWith('|'))t=t.slice(1); if(t.endsWith('|'))t=t.slice(0,-1); return t.split('|').map(c=>c.trim()); }
+
+  function mdToEditHtml(md, cardId, entry, images){
+    images = images || {};
+    const lines = String(md||'').split('\n'); const out=[]; let i=0;
+    while (i<lines.length){
+      const ln=lines[i], isRow=/^\s*\|.*\|\s*$/.test(ln), sep=lines[i+1]&&/^\s*\|?[\s:\-|]+\|?\s*$/.test(lines[i+1])&&lines[i+1].indexOf('-')>=0;
+      if (isRow && sep){
+        const header=edSplitRow(ln); let j=i+2; const rows=[];
+        while (j<lines.length && /^\s*\|.*\|\s*$/.test(lines[j])){ rows.push(edSplitRow(lines[j])); j++; }
+        out.push('<table><thead><tr>'+header.map(h=>'<th>'+edInlineWithOcc(h,cardId,entry)+'</th>').join('')+'</tr></thead><tbody>'+
+          rows.map(r=>'<tr>'+r.map(c=>'<td>'+edInlineWithOcc(c,cardId,entry)+'</td>').join('')+'</tr>').join('')+'</tbody></table>');
+        i=j; continue;
+      }
+      out.push(ln); i++;
+    }
+    const text = out.join('\n');
+    return text.split(/\n{2,}/).map(chunk => {
+      const c = chunk.trim(); if(!c) return '';
+      if (/^<table/.test(c)) return c;
+      const fig = c.match(/^\{\{\s*fig\s*:\s*(.+?)\s*\}\}$/i);
+      if (fig) return '<div class="fig-ref" contenteditable="false">\uD83D\uDCD6 See '+escapeHtml(fig[1])+' in the textbook</div>';
+      const im = c.match(/^!\[([^\]]*)\]\((\S+?)\)$/);
+      if (im){
+        const alt=im[1].trim(); let url=im[2], token=url;
+        if (/^data:/.test(url)){ const key='img'+(Object.keys(images).length+1); images[key]=url; token='#'+key; }
+        const full = token.charAt(0)==='#' ? (images[token.slice(1)]||url) : url;
+        const cap = alt ? '<figcaption contenteditable="false">'+escapeHtml(alt)+'</figcaption>' : '';
+        return '<figure contenteditable="false" data-token="'+escapeHtml(token)+'"><img src="'+escapeHtml(full)+'" alt="'+escapeHtml(alt)+'">'+cap+'</figure>';
+      }
+      if (/^\s*([-*_])(?:\s*\1){2,}\s*$/.test(c)) return '<hr>';
+      const ls = c.split('\n').filter(l=>l.trim().length);
+      if (ls.length===1){ const hm=ls[0].match(/^\s*(#{2,4})\s+(.+)$/); if(hm) return '<h3>'+edInlineWithOcc(hm[2].trim(),cardId,entry)+'</h3>'; }
+      if (ls.length && ls.every(l=>/^\s*[-*]\s+/.test(l))) return '<ul>'+ls.map(l=>'<li>'+edInlineWithOcc(l.replace(/^\s*[-*]\s+/,''),cardId,entry)+'</li>').join('')+'</ul>';
+      if (ls.length && ls.every(l=>/^\s*\d+[.)]\s+/.test(l))) return '<ol>'+ls.map(l=>'<li>'+edInlineWithOcc(l.replace(/^\s*\d+[.)]\s+/,''),cardId,entry)+'</li>').join('')+'</ol>';
+      if (ls.length && ls.every(l=>/^\s*>\s?/.test(l))) return '<blockquote>'+ls.map(l=>edInlineWithOcc(l.replace(/^\s*>\s?/,''),cardId,entry)).join('<br>')+'</blockquote>';
+      return '<p>'+ls.map(l=>edInlineWithOcc(l,cardId,entry)).join('<br>')+'</p>';
+    }).join('');
+  }
+
+  const ED_BLOCK_TAGS = {p:1,h3:1,h2:1,h4:1,ul:1,ol:1,blockquote:1,hr:1,figure:1,table:1,div:1};
+  function editHtmlToMd(rootEl, images){
+    images = images || {};
+    const blocks = []; let runNodes = [];
+    function flushRun(){
+      if (!runNodes.length) return;
+      const tmp = document.createElement('p');
+      runNodes.forEach(n => tmp.appendChild(n.cloneNode(true)));
+      const md = edInlineNodeMd(tmp, images);
+      if (md) blocks.push(md);
+      runNodes = [];
+    }
+    Array.prototype.forEach.call(rootEl.childNodes, node => {
+      const isBlock = node.nodeType===1 && ED_BLOCK_TAGS[node.tagName.toLowerCase()];
+      if (isBlock){ flushRun(); const md=edBlockToMd(node, images); if (md!=null && md!=='') blocks.push(md); }
+      else runNodes.push(node);
+    });
+    flushRun();
+    return blocks.join('\n\n').replace(/\n{3,}/g,'\n\n').trim();
+  }
+  function edBlockToMd(node, images){
+    if (node.nodeType===3){ const t=node.textContent.trim(); return t?t:''; }
+    if (node.nodeType!==1) return '';
+    const tag = node.tagName.toLowerCase();
+    switch (tag){
+      case 'p': return edInlineNodeMd(node, images);
+      case 'h3': case 'h2': case 'h4': return '### '+edInlineNodeMd(node, images);
+      case 'ul': return edListMd(node,'ul',images);
+      case 'ol': return edListMd(node,'ol',images);
+      case 'blockquote': return edInlineNodeMd(node, images).split('\n').map(l=>'> '+l).join('\n');
+      case 'hr': return '---';
+      case 'figure': return edFigureMd(node, images);
+      case 'table': return edTableMd(node, images);
+      case 'div':
+        if (node.classList && node.classList.contains('fig-ref')){
+          const txt = node.textContent.replace(/^\s*\uD83D\uDCD6\s*See\s*/,'').replace(/\s*in the textbook\s*$/,'').trim();
+          return '{{fig: '+txt+'}}';
+        }
+        const tbl = node.querySelector && node.querySelector('table'); if (tbl) return edTableMd(tbl, images);
+        return edInlineNodeMd(node, images);
+      case 'br': return '';
+      default: return edInlineNodeMd(node, images);
+    }
+  }
+  function edInlineNodeMd(node, images){
+    let out=''; Array.prototype.forEach.call(node.childNodes, ch => out += edInlineChildMd(ch, images));
+    return out.replace(/[ \t]+\n/g,'\n').trim();
+  }
+  function edInlineChildMd(ch, images){
+    if (ch.nodeType===3) return ch.textContent;
+    if (ch.nodeType!==1) return '';
+    const tag = ch.tagName.toLowerCase();
+    if (tag==='br') return '\n';
+    if (ch.classList && ch.classList.contains('occ-chip')){
+      const a = ch.getAttribute('data-a')||ch.textContent, h = ch.getAttribute('data-h');
+      return h ? '{{'+a+'|'+h+'}}' : '{{'+a+'}}';
+    }
+    const inner = edInlineNodeMd(ch, images);
+    switch (tag){
+      case 'strong': case 'b': return '**'+inner+'**';
+      case 'em': case 'i': return '*'+inner+'*';
+      case 'mark': return '=='+inner+'==';
+      case 'code': return '`'+inner+'`';
+      case 'u': return '__'+inner+'__';
+      case 'a': return '['+inner+']('+(ch.getAttribute('href')||'')+')';
+      default: return inner;
+    }
+  }
+  function edListMd(node,type,images){
+    const items = Array.prototype.slice.call(node.children).filter(c=>c.tagName.toLowerCase()==='li');
+    return items.map((li,i) => (type==='ol'?(i+1)+'. ':'- ')+edInlineNodeMd(li, images)).join('\n');
+  }
+  function edFigureMd(node, images){
+    const img = node.querySelector('img'); if (!img) return '';
+    const cap = node.querySelector('figcaption'), alt = cap?cap.textContent.trim():(img.getAttribute('alt')||'');
+    const token = node.getAttribute('data-token')||img.getAttribute('src')||'';
+    const url = token.charAt(0)==='#' ? (images[token.slice(1)]||img.getAttribute('src')||token) : token;
+    return '!['+alt+']('+url+')';
+  }
+  function edTableMd(node, images){
+    const headCells = node.querySelectorAll('thead th');
+    let header = Array.prototype.map.call(headCells, th=>edInlineNodeMd(th,images)||' ');
+    if (!header.length){ const firstTr=node.querySelector('tr'); if (firstTr) header=Array.prototype.map.call(firstTr.children,td=>edInlineNodeMd(td,images)||' '); }
+    const rows = [];
+    Array.prototype.forEach.call(node.querySelectorAll('tbody tr'), tr => rows.push(Array.prototype.map.call(tr.children, td=>edInlineNodeMd(td,images)||' ')));
+    const line = cells => '| '+cells.join(' | ')+' |';
+    const out = [line(header), '|'+header.map(()=>'---').join('|')+'|'];
+    rows.forEach(r => out.push(line(r)));
+    return out.join('\n');
+  }
+
   function parseMarkdown(raw){
     let deckTitle = 'Untitled Deck';
     const h1 = raw.match(/^#\s+(.+)$/m);
@@ -1531,11 +1769,16 @@ Here is the source document to convert:
 
   function buildReader(deck, resumePos, entryCtx){
     entryCtx = entryCtx || {};
+    // if cram was running on whatever deck was open before, save its progress
+    // so it can be resumed later rather than silently discarding it
+    if (readerMode === 'cram' && cram && currentDeck) persistCramState();
     currentEntry = entryCtx.entry || getOrCreateEntry(deck);
     isSupplementView = !!entryCtx.isSupplement;
-    // opening any deck ends whatever session/cram was running on the previous one
+    // opening any deck ends whatever session/cram/edit was running on the previous one
     readerMode = 'read'; session = null; graderKey = null; sessionSupplement = null;
+    editingPos = null; editingBodyEl = null;
     currentPos = resumePos || 1;
+    cram = null;
     stopCramTimer();
     hideGrader();
     cramBarWrap.classList.remove('show');
@@ -1652,6 +1895,7 @@ Here is the source document to convert:
         requestAnimationFrame(() => item.el.scrollIntoView({ behavior:'auto', block:'start' }));
       }
     }
+    maybeShowCramResumeBanner();
   }
 
   function applyLikeState(sectionEl, pos){
@@ -1738,6 +1982,168 @@ Here is the source document to convert:
   main.addEventListener('dblclick', (e) => {
     if (e.target.closest('.heartBadge')) return;
     likeFromDoubleTap(e.target);
+  });
+
+  /* ============================================================================
+     PER-CARD READ/EDIT TOGGLE — like a PDF annotator: flip a single card into
+     an editable surface in place, edit, Save (or Cancel), and keep reading.
+     Only one card can be in edit mode at a time. Editing pauses cram's timer
+     for as long as you're in the editor, and resumes it on save/cancel.
+     ========================================================================= */
+  function startInlineEdit(pos){
+    if (editingPos !== null) return; // finish/cancel the current edit first
+    const item = cardIndexList.find(c => c.pos === pos);
+    if (!item || !item.hydrated) return;
+    const wasCramRunning = pauseCramForEdit();
+    editingPos = pos;
+    item.el.dataset.wasCramRunning = wasCramRunning ? '1' : '0';
+    const panel = item.el.querySelector('.panel');
+    panel.classList.add('editing');
+    const eyebrow = panel.querySelector('.eyebrow');
+    const titleEl = panel.querySelector('h2');
+    const bodyEl = panel.querySelector('.body');
+    const editBadge = panel.querySelector('.editBadge');
+    if (editBadge) editBadge.remove();
+    const heart = panel.querySelector('.heartBadge');
+    if (heart) heart.style.display = 'none';
+
+    // swap the tag pill for an editable one
+    const tagText = item.card.tag ? String(item.card.tag) : '';
+    eyebrow.querySelector('.section-tag')?.remove();
+    const tagInput = document.createElement('input');
+    tagInput.type = 'text'; tagInput.className = 'edTag'; tagInput.placeholder = 'tag (optional)';
+    tagInput.value = tagText;
+    tagInput.style.cssText = 'font-family:IBM Plex Mono,monospace;font-size:10.5px;border:1px solid var(--eosin-dim);border-radius:100px;padding:4px 10px;color:var(--eosin);background:var(--soft-orange);width:140px;';
+    eyebrow.insertBefore(tagInput, eyebrow.firstChild);
+
+    titleEl.classList.add('edTitle');
+    titleEl.setAttribute('contenteditable', 'true');
+    titleEl.setAttribute('spellcheck', 'true');
+
+    const images = currentEntry.images || (currentEntry.images = {});
+    bodyEl.classList.add('edBody');
+    bodyEl.setAttribute('contenteditable', 'true');
+    bodyEl.setAttribute('spellcheck', 'true');
+    bodyEl.innerHTML = mdToEditHtml(item.card.body || '', engineCard(item.card).id, currentEntry, images);
+    editingBodyEl = bodyEl;
+
+    const actions = document.createElement('div');
+    actions.className = 'editActions';
+    actions.innerHTML = '<button class="edCancel" id="edCancelBtn" title="Discard changes">'+XMARK_SVG+'</button>'+
+      '<button class="edSave" id="edSaveBtn" title="Save changes">'+CHECK_SVG+'Save</button>';
+    panel.appendChild(actions);
+    document.getElementById('edCancelBtn').onclick = () => cancelInlineEdit(pos);
+    document.getElementById('edSaveBtn').onclick = () => saveInlineEdit(pos);
+
+    bodyEl.addEventListener('keydown', edBodyKeydown);
+    titleEl.focus();
+    placeCaretAtEnd(titleEl);
+  }
+  function placeCaretAtEnd(el){
+    const range = document.createRange(); range.selectNodeContents(el); range.collapse(false);
+    const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+  }
+  function edBodyKeydown(e){
+    if ((e.ctrlKey || e.metaKey) && !e.altKey){
+      const k = e.key.toLowerCase();
+      if (k === 'b'){ e.preventDefault(); document.execCommand('bold'); }
+      else if (k === 'i'){ e.preventDefault(); document.execCommand('italic'); }
+      else if (k === 'e'){ e.preventDefault(); edToggleTag('mark'); }
+      else if (k === '`'){ e.preventDefault(); edToggleTag('code'); }
+      else if (k === 'o'){ e.preventDefault(); edOccludeSelection(); }
+    }
+    if (e.key === 'Escape'){ e.preventDefault(); cancelInlineEdit(editingPos); }
+  }
+  function edToggleTag(tag){
+    const sel = window.getSelection(); if (!sel.rangeCount || sel.isCollapsed) return;
+    const r = sel.getRangeAt(0);
+    const anc = r.commonAncestorContainer, host = anc.nodeType === 1 ? anc : anc.parentNode;
+    const existing = host.closest && host.closest(tag);
+    if (existing && sel.toString().trim() === existing.textContent.trim()){
+      const p = existing.parentNode; while (existing.firstChild) p.insertBefore(existing.firstChild, existing); p.removeChild(existing);
+    } else {
+      const el = document.createElement(tag);
+      try { el.appendChild(r.extractContents()); r.insertNode(el); sel.removeAllRanges(); const nr = document.createRange(); nr.setStartAfter(el); nr.collapse(true); sel.addRange(nr); } catch(e){}
+    }
+  }
+  function edOccludeSelection(){
+    if (!editingBodyEl) return;
+    const sel = window.getSelection(); if (!sel.rangeCount) return;
+    const text = sel.toString().trim() || 'answer';
+    const r = sel.getRangeAt(0);
+    const chip = document.createElement('span');
+    chip.className = 'occ-chip'; chip.setAttribute('data-a', text); chip.setAttribute('contenteditable', 'false'); chip.textContent = text;
+    try { r.deleteContents(); r.insertNode(chip); sel.removeAllRanges(); const nr = document.createRange(); nr.setStartAfter(chip); nr.collapse(true); sel.addRange(nr); } catch(e){}
+  }
+
+  function saveInlineEdit(pos){
+    const item = cardIndexList.find(c => c.pos === pos);
+    if (!item) return;
+    const panel = item.el.querySelector('.panel');
+    const titleEl = panel.querySelector('.edTitle');
+    const tagInput = panel.querySelector('.edTag');
+    const images = currentEntry.images || (currentEntry.images = {});
+    item.card.title = titleEl.textContent.trim();
+    item.card.tag = tagInput ? tagInput.value.trim() : '';
+    item.card.body = editHtmlToMd(editingBodyEl, images);
+    item.title = item.card.title; item.body = item.card.body;
+    persistEntry(currentEntry);
+    exitInlineEdit(item, true);
+  }
+  function cancelInlineEdit(pos){
+    const item = cardIndexList.find(c => c.pos === pos);
+    if (!item) return;
+    exitInlineEdit(item, false);
+  }
+  function exitInlineEdit(item, saved){
+    const panel = item.el.querySelector('.panel');
+    panel.classList.remove('editing');
+    const wasCramRunning = item.el.dataset.wasCramRunning === '1';
+    delete item.el.dataset.wasCramRunning;
+    editingPos = null; editingBodyEl = null;
+    hideEdFloatbar();
+    // rebuild the panel cleanly from (possibly updated) card data — simplest
+    // way to guarantee the read-mode rendering, flags, and heart badge are
+    // all consistent again after an edit
+    item.el.innerHTML = cardPanelHTML(item.card, item.pos);
+    applyLikeState(item.el, item.pos);
+    const mermaids = item.el.querySelectorAll('.mermaid');
+    if (mermaids.length && window.mermaid && mermaidInited){ try { mermaid.run({ nodes: mermaids }); } catch(e){} }
+    if (saved){ renderSpines_ifExists(); }
+    if (wasCramRunning) resumeCramAfterEdit();
+  }
+  // the reader has no spine list (that's card-maker); kept as a no-op hook in
+  // case a future surface wants to react to a saved edit
+  function renderSpines_ifExists(){}
+
+  main.addEventListener('click', (e) => {
+    const editBadge = e.target.closest('.editBadge');
+    if (editBadge){ startInlineEdit(parseInt(editBadge.dataset.pos, 10)); return; }
+  });
+
+  // floating selection toolbar for the inline card editor
+  const edFloatbar = document.getElementById('edFloatbar');
+  function updateEdFloatbar(){
+    if (editingPos === null || !editingBodyEl){ hideEdFloatbar(); return; }
+    const sel = window.getSelection();
+    if (!sel.rangeCount || sel.isCollapsed || !editingBodyEl.contains(sel.anchorNode)){ hideEdFloatbar(); return; }
+    const r = sel.getRangeAt(0).getBoundingClientRect();
+    edFloatbar.style.left = (r.left + r.width/2) + 'px';
+    edFloatbar.style.top = (r.top - 8) + 'px';
+    edFloatbar.classList.add('show');
+  }
+  function hideEdFloatbar(){ edFloatbar.classList.remove('show'); }
+  document.addEventListener('selectionchange', updateEdFloatbar);
+  edFloatbar.addEventListener('mousedown', (e) => e.preventDefault());
+  edFloatbar.addEventListener('click', (e) => {
+    const b = e.target.closest('.edfb'); if (!b || !editingBodyEl) return;
+    editingBodyEl.focus();
+    const cmd = b.dataset.cmd;
+    if (cmd === 'bold') document.execCommand('bold');
+    else if (cmd === 'italic') document.execCommand('italic');
+    else if (cmd === 'mark') edToggleTag('mark');
+    else if (cmd === 'code') edToggleTag('code');
+    else if (cmd === 'occlude') edOccludeSelection();
   });
 
   /* ============================================================================
@@ -1964,10 +2370,65 @@ Here is the source document to convert:
      (same plain/dotted style as normal reading); a depleting bar stays pinned
      at the top of the screen for the whole session.
      ========================================================================= */
-  function startCram(){
+  /* ============================================================================
+     GENERIC CONFIRM MODAL — used for cram enter/exit confirmation.
+     ========================================================================= */
+  function showConfirm(title, bodyHtml, confirmLabel, onConfirm, cancelLabel){
+    const box = document.getElementById('confirmBox');
+    const modal = document.getElementById('confirmModal');
+    box.innerHTML = '<h4>'+escapeHtml(title)+'</h4><p>'+bodyHtml+'</p><div class="cfActions">'+
+      '<button id="cfCancel">'+escapeHtml(cancelLabel||'Cancel')+'</button>'+
+      '<button class="prime" id="cfOk">'+escapeHtml(confirmLabel)+'</button></div>';
+    modal.classList.add('show');
+    document.getElementById('cfCancel').onclick = () => { modal.classList.remove('show'); };
+    document.getElementById('cfOk').onclick = () => { modal.classList.remove('show'); onConfirm(); };
+  }
+
+  /* ============================================================================
+     CRAM MODE — 15-minute timed read-through. Occlusions stay fully visible
+     (same plain/dotted style as normal reading); a depleting bar stays pinned
+     at the top for the whole session. The timer is pausable (editing a card
+     pauses it) and its remaining time + current card are persisted, so
+     closing the tab or reloading and coming back resumes exactly where you
+     left off — same card, same time left.
+     ========================================================================= */
+  function cramKeyFor(){ return 'shorts-reader:cram:' + (currentDeck ? currentDeck.title : ''); }
+  function persistCramState(){
+    if (!cram || !currentDeck) return;
+    try { localStorage.setItem(cramKeyFor(), JSON.stringify({ remainingMs: cram.remainingMs, pos: currentPos, savedAt: Date.now() })); }
+    catch(e){ /* storage full — non-fatal, just won't resume precisely */ }
+  }
+  function clearCramState(){ if (currentDeck){ try { localStorage.removeItem(cramKeyFor()); } catch(e){} } }
+  function loadCramState(){
+    if (!currentDeck) return null;
+    try { const raw = localStorage.getItem(cramKeyFor()); return raw ? JSON.parse(raw) : null; } catch(e){ return null; }
+  }
+  function maybeShowCramResumeBanner(){
+    const saved = loadCramState();
+    const el = document.getElementById('cramResume');
+    if (!saved || !(saved.remainingMs > 0)){ el.classList.remove('show'); return; }
+    const mm = Math.floor(saved.remainingMs/60000), ss = Math.floor((saved.remainingMs%60000)/1000);
+    el.innerHTML = '<h4>Resume cram session?</h4><p>'+mm+':'+String(ss).padStart(2,'0')+' left \u00b7 card '+saved.pos+' of '+currentDeck.cards.length+'</p>'+
+      '<div class="crActions"><button class="prime" id="crResume">Resume</button><button id="crDiscard">Not now</button></div>';
+    el.classList.add('show');
+    document.getElementById('crResume').onclick = () => { el.classList.remove('show'); startCramConfirmed(saved); };
+    document.getElementById('crDiscard').onclick = () => { el.classList.remove('show'); };
+  }
+
+  function requestStartCram(){
+    showConfirm('Start cram session?', 'You\u2019ll have 15 minutes to read through the deck. Occlusions stay visible \u2014 just read at pace.', 'Start', () => {
+      clearCramState();
+      startCramConfirmed(null);
+    });
+  }
+  function requestStopCram(){
+    showConfirm('End cram session?', 'Your remaining time and where you are in the deck are saved either way \u2014 you can pick this back up later instead of ending now.', 'End session', () => { stopCram(); }, 'Keep going');
+  }
+  function startCramConfirmed(resumeState){
     if (readerMode === 'study') endStudySession();
     readerMode = 'cram';
-    cramEndsAt = Date.now() + CRAM_MS;
+    cram = { remainingMs: resumeState ? resumeState.remainingMs : CRAM_MS, running: true };
+    cramLastTickAt = Date.now();
     cramSeen = new Set([currentPos]);
     cramBarWrap.classList.add('show');
     cramTimeEl.classList.add('show');
@@ -1976,30 +2437,53 @@ Here is the source document to convert:
     clearInterval(cramTimer);
     cramTimer = setInterval(tickCram, 250);
     tickCram();
+    if (resumeState && resumeState.pos) scrollToPos(resumeState.pos);
+    persistCramState();
   }
   function stopCram(){
     stopCramTimer();
     if (readerMode === 'cram'){
       readerMode = 'read';
+      cram = null;
       cramBarWrap.classList.remove('show');
       cramTimeEl.classList.remove('show');
       updateStudyCramButtons();
       reRenderAllHydrated();
+      clearCramState();
     }
+  }
+  // Pause/resume hooks used by the per-card inline editor: editing a card
+  // while cramming pauses the countdown so the timer doesn't run out while
+  // you're mid-edit, and resumes it the moment you save or cancel.
+  function pauseCramForEdit(){
+    if (readerMode === 'cram' && cram && cram.running){ cram.running = false; persistCramState(); return true; }
+    return false;
+  }
+  function resumeCramAfterEdit(){
+    if (readerMode === 'cram' && cram && !cram.running){ cram.running = true; cramLastTickAt = Date.now(); }
   }
   function stopCramTimer(){ clearInterval(cramTimer); cramTimer = null; }
   function tickCram(){
-    if (readerMode !== 'cram') { stopCramTimer(); return; }
-    const left = Math.max(0, cramEndsAt - Date.now());
+    if (readerMode !== 'cram' || !cram){ stopCramTimer(); return; }
+    if (cram.running){
+      const now = Date.now();
+      cram.remainingMs = Math.max(0, cram.remainingMs - (now - cramLastTickAt));
+      cramLastTickAt = now;
+    }
+    const left = cram.remainingMs;
     const frac = Math.max(0, Math.min(1, left / CRAM_MS));
     cramBarEl.style.width = (frac * 100) + '%';
     cramBarEl.classList.toggle('low', frac < 0.15 && frac > 0);
     cramBarEl.classList.toggle('out', left <= 0);
     const s = Math.ceil(left / 1000), mm = Math.floor(s / 60), ss = s % 60;
-    cramTimeEl.textContent = left <= 0 ? 'time up' : (mm + ':' + String(ss).padStart(2, '0'));
+    cramTimeEl.textContent = (left <= 0 ? 'time up' : (mm + ':' + String(ss).padStart(2, '0'))) + (cram.running ? '' : ' \u23F8');
     cramTimeEl.classList.toggle('out', left <= 0);
+    cramTimeEl.classList.toggle('paused', !cram.running);
+    if (cram.running){ cramPersistCounter++; if (cramPersistCounter % 8 === 0) persistCramState(); } // ~every 2s
   }
-  cramBtn.addEventListener('click', () => { if (readerMode === 'cram') stopCram(); else startCram(); });
+  cramBtn.addEventListener('click', () => { if (readerMode === 'cram') requestStopCram(); else requestStartCram(); });
+  window.addEventListener('beforeunload', () => { if (readerMode === 'cram' && cram) persistCramState(); });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && readerMode === 'cram' && cram) persistCramState(); });
 
   function buildMilestoneCard(pos, remaining, total){
     const sec = document.createElement('section');
