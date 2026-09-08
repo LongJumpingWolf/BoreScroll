@@ -459,7 +459,7 @@
   /* ---- full-screen card editor overlay ---- */
   .cardEditorScreen{ position:fixed; inset:0; z-index:280; background:#fff; display:none; flex-direction:column; }
   .cardEditorScreen.show{ display:flex; }
-  .ceHeader{ flex-shrink:0; display:flex; align-items:center; justify-content:space-between; gap:12px;
+  .ceHeader{ position:relative; z-index:295; flex-shrink:0; display:flex; align-items:center; justify-content:space-between; gap:12px;
     padding:calc(16px + env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right)) 16px calc(20px + env(safe-area-inset-left));
     border-bottom:1px solid var(--line); background:#fff; }
   .ceCancelTop{ width:36px; height:36px; border-radius:100px; border:1px solid var(--line); background:#fff;
@@ -477,6 +477,39 @@
     line-height:1.28; margin:0 0 18px; letter-spacing:-0.01em; color:var(--ink); }
   .ceCard .edTitle:empty::before{ content:"Card title"; color:var(--line); }
   .ceCard .edBody:empty::before{ content:"Write the card. Select text to format \00b7 select then Occlude to hide an answer."; color:var(--ink-dim); opacity:0.6; }
+
+  /* mode switch (Visual / MD) in the editor header */
+  .ceModeSwitch{ display:flex; background:var(--field); border:1px solid var(--line); border-radius:9px; padding:2px; }
+  .ceModeSwitch button{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; padding:6px 11px; border-radius:7px; color:var(--ink-dim); }
+  .ceModeSwitch button.on{ background:var(--eosin); color:#fff; font-weight:500; }
+
+  /* raw MD textarea, alternative to the WYSIWYG body */
+  textarea.ceMdArea{ width:100%; min-height:320px; resize:vertical; font-family:'IBM Plex Mono',monospace; font-size:13.5px;
+    line-height:1.65; border:1px solid var(--line); border-radius:12px; padding:14px 15px; background:var(--field);
+    color:var(--ink); display:block; caret-color:var(--eosin); }
+  textarea.ceMdArea:focus{ outline:none; border-color:var(--eosin-dim); }
+
+  /* detachable vertical floating palette — docked to the editor's left edge,
+     draggable anywhere within it, same tool set as Card Maker */
+  .cePalette{ position:fixed; z-index:290; left:calc(16px + env(safe-area-inset-left));
+    top:50%; transform:translateY(-50%); display:flex; flex-direction:column; align-items:center; gap:3px;
+    padding:6px; width:44px; background:#1a1712; border-radius:14px; box-shadow:0 18px 40px -14px rgba(0,0,0,0.5); }
+  .cePalette.dragging{ opacity:0.92; }
+  .cepal-grip{ width:32px; height:18px; border-radius:7px; color:#8a8375; display:flex; align-items:center; justify-content:center;
+    cursor:grab; font-size:11px; letter-spacing:-2px; }
+  .cepal-grip:active{ cursor:grabbing; }
+  .cepal-grip:hover{ color:#cfd3da; background:rgba(255,255,255,0.08); }
+  .cepal-btn{ width:32px; height:32px; border-radius:9px; color:#cfd3da; display:flex; align-items:center; justify-content:center;
+    font-size:13px; transition:.12s; position:relative; }
+  .cepal-btn:hover{ background:rgba(255,255,255,0.1); color:#fff; }
+  .cepal-btn:active{ transform:scale(0.9); }
+  .cepal-btn svg{ width:15px; height:15px; display:block; flex-shrink:0; }
+  .cepal-mk{ font-family:'Fraunces',serif; font-weight:600; background:var(--gold); color:#1a1712; border-radius:3px; padding:0 3px; font-size:11px; }
+  .cepal-sep{ width:22px; height:1px; background:rgba(255,255,255,0.14); margin:3px 0; }
+  .cepal-btn[data-tip]:hover::after{ content:attr(data-tip); position:absolute; left:40px; top:50%; transform:translateY(-50%);
+    background:#1a1712; color:#fff; font-size:10.5px; padding:5px 9px; border-radius:7px; white-space:nowrap; z-index:5;
+    pointer-events:none; box-shadow:0 8px 20px -8px rgba(0,0,0,0.6); }
+  @media (max-width:720px){ .cePalette{ left:6px; } .ceCard{ padding-left:44px; } }
   input.edTag{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; border:1px solid var(--eosin-dim); border-radius:100px;
     padding:6px 12px; color:var(--eosin); background:var(--soft-orange); width:180px; max-width:60vw; }
   input.edTag:focus{ outline:none; border-color:var(--eosin); background:#fff; }
@@ -778,15 +811,37 @@
     <div class="ceHeader">
       <button class="ceCancelTop" id="ceCancelTop" aria-label="Discard and close">&#10005;</button>
       <span class="ceTitle">Editing card <span id="ceNum"></span></span>
+      <div class="ceModeSwitch" id="ceModeSwitch">
+        <button class="on" data-em="visual">Visual</button>
+        <button data-em="md">MD</button>
+      </div>
       <button class="ceSaveTop" id="ceSaveTop">Save</button>
     </div>
     <div class="ceScroll" id="ceScroll">
+      <div class="cePalette" id="cePalette">
+        <button class="cepal-grip" id="cePalGrip" title="Drag to move">&#8942;&#8942;</button>
+        <button class="cepal-btn" data-cmd="bold" data-tip="Bold"><b>B</b></button>
+        <button class="cepal-btn" data-cmd="italic" data-tip="Italic"><i>I</i></button>
+        <button class="cepal-btn" data-cmd="mark" data-tip="Highlight"><span class="cepal-mk">A</span></button>
+        <button class="cepal-btn" data-cmd="code" data-tip="Code">&lt;/&gt;</button>
+        <div class="cepal-sep"></div>
+        <button class="cepal-btn" data-cmd="occlude" data-tip="Occlude">&#9672;</button>
+        <div class="cepal-sep"></div>
+        <button class="cepal-btn" data-cmd="h3" data-tip="Heading">H</button>
+        <button class="cepal-btn" data-cmd="ul" data-tip="Bullets">&#8226;</button>
+        <button class="cepal-btn" data-cmd="ol" data-tip="Numbered">1.</button>
+        <button class="cepal-btn" data-cmd="quote" data-tip="Quote">&#8221;</button>
+        <button class="cepal-btn" data-cmd="table" data-tip="Table">&#9638;</button>
+        <button class="cepal-btn" data-cmd="image" data-tip="Image"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.6"/><path d="M21 15l-5-5L5 21"/></svg></button>
+        <button class="cepal-btn" data-cmd="fig" data-tip="Figure ref">&#128214;</button>
+      </div>
       <div class="ceCard">
         <div class="ceEyebrow">
           <input type="text" class="edTag" id="ceTag" placeholder="tag (optional)">
         </div>
         <div class="edTitle" id="ceCardTitle" contenteditable="true" spellcheck="true"></div>
         <div class="edBody body" id="ceCardBody" contenteditable="true" spellcheck="true"></div>
+        <textarea class="ceMdArea" id="ceMdArea" spellcheck="false" style="display:none"></textarea>
       </div>
     </div>
   </div>
@@ -2030,8 +2085,12 @@ Here is the source document to convert:
   const ceTag = document.getElementById('ceTag');
   const ceCardTitle = document.getElementById('ceCardTitle');
   const ceCardBody = document.getElementById('ceCardBody');
+  const ceMdArea = document.getElementById('ceMdArea');
+  const cePalette = document.getElementById('cePalette');
   let editWasCramRunning = false;
   let mainScrollLockedValue = null;
+  let ceEditMode = 'visual'; // 'visual' | 'md', reset to 'visual' each time the editor opens
+  let cePalettePos = null;   // {x,y} once the user drags the palette; null = default docked position
 
   function lockMainScroll(){ mainScrollLockedValue = main.style.overflowY || ''; main.style.overflowY = 'hidden'; }
   function unlockMainScroll(){ main.style.overflowY = mainScrollLockedValue || ''; mainScrollLockedValue = null; }
@@ -2043,12 +2102,15 @@ Here is the source document to convert:
     ensureHydrated(pos);
     editWasCramRunning = pauseCramForEdit();
     editingPos = pos;
+    ceEditMode = 'visual';
     ceNum.textContent = pos + ' / ' + currentDeck.cards.length;
     ceTag.value = item.card.tag ? String(item.card.tag) : '';
     ceCardTitle.textContent = item.card.title || '';
     const images = currentEntry.images || (currentEntry.images = {});
     ceCardBody.innerHTML = mdToEditHtml(item.card.body || '', engineCard(item.card).id, currentEntry, images);
+    ceCardBody.style.display = ''; ceMdArea.style.display = 'none';
     editingBodyEl = ceCardBody;
+    updateCeModeSwitch();
 
     lockMainScroll();
     cardEditorScreen.classList.add('show');
@@ -2092,6 +2154,146 @@ Here is the source document to convert:
     chip.className = 'occ-chip'; chip.setAttribute('data-a', text); chip.setAttribute('contenteditable', 'false'); chip.textContent = text;
     try { r.deleteContents(); r.insertNode(chip); sel.removeAllRanges(); const nr = document.createRange(); nr.setStartAfter(chip); nr.collapse(true); sel.addRange(nr); } catch(e){}
   }
+  function edInsertNodeAtCaret(node){
+    const sel = window.getSelection();
+    if (sel.rangeCount && ceCardBody.contains(sel.anchorNode)){
+      const r = sel.getRangeAt(0);
+      // Find the ancestor of the caret that is a DIRECT child of the body
+      // (e.g. the enclosing <p>) and insert the new block AFTER it as a
+      // sibling — inserting directly at the raw caret position would nest a
+      // block element like <ul>/<table> INSIDE that paragraph, which then
+      // serializes as one run of mushed-together inline text.
+      let topLevel = r.startContainer;
+      while (topLevel && topLevel.parentNode !== ceCardBody) topLevel = topLevel.parentNode;
+      if (topLevel){ ceCardBody.insertBefore(node, topLevel.nextSibling); return; }
+      r.collapse(false); r.insertNode(node);
+    } else ceCardBody.appendChild(node);
+  }
+  function edBuildTableNode(header, rows){
+    const t = document.createElement('table'), thead = document.createElement('thead'), htr = document.createElement('tr');
+    header.forEach(h => { const th = document.createElement('th'); th.textContent = h; htr.appendChild(th); });
+    thead.appendChild(htr); t.appendChild(thead);
+    const tb = document.createElement('tbody');
+    rows.forEach(r => { const tr = document.createElement('tr'); r.forEach(c => { const td = document.createElement('td'); td.textContent = c; tr.appendChild(td); }); tb.appendChild(tr); });
+    t.appendChild(tb);
+    return t;
+  }
+  function edInsertBlockVisual(kind){
+    ceCardBody.focus();
+    let node;
+    if (kind === 'ul' || kind === 'ol'){ node = document.createElement(kind); ['item one','item two','item three'].forEach(x => { const li = document.createElement('li'); li.textContent = x; node.appendChild(li); }); }
+    else if (kind === 'quote'){ node = document.createElement('blockquote'); node.textContent = 'quoted line'; }
+    else if (kind === 'h3'){ node = document.createElement('h3'); node.className = 'card-subhead'; node.textContent = 'Sub-heading'; }
+    else if (kind === 'table'){ node = edBuildTableNode(['Feature','A','B'], [['\u2014','\u2014','\u2014'],['\u2014','\u2014','\u2014']]); }
+    else if (kind === 'fig'){ const label = prompt('Figure label (e.g. "Fig 7.4"):','Fig '); if (!label) return; node = document.createElement('div'); node.className = 'fig-ref'; node.setAttribute('contenteditable','false'); node.textContent = '\uD83D\uDCD6 See ' + label + ' in the textbook'; }
+    if (!node) return;
+    edInsertNodeAtCaret(node);
+  }
+  function edInsertMd(text){
+    const s = ceMdArea.selectionStart, e = ceMdArea.selectionEnd;
+    const pre = ceMdArea.value.slice(0, s), post = ceMdArea.value.slice(e);
+    const lead = pre.length ? (pre.endsWith('\n\n') ? '' : (pre.endsWith('\n') ? '\n' : '\n\n')) : '';
+    const insert = lead + text;
+    ceMdArea.value = pre + insert + post;
+    const caret = (pre + insert).length;
+    ceMdArea.selectionStart = ceMdArea.selectionEnd = caret;
+    ceMdArea.focus();
+  }
+  function edWrapMd(a, b){
+    const s = ceMdArea.selectionStart, e = ceMdArea.selectionEnd, sel = ceMdArea.value.slice(s, e) || '';
+    ceMdArea.value = ceMdArea.value.slice(0, s) + a + sel + b + ceMdArea.value.slice(e);
+    ceMdArea.selectionStart = s + a.length; ceMdArea.selectionEnd = s + a.length + sel.length;
+    ceMdArea.focus();
+  }
+
+  // Image embedding — stores a short token in the deck's shared image map;
+  // the editable surface and the saved markdown only ever carry the token.
+  function pickCeImage(){
+    const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*';
+    input.onchange = () => {
+      const f = input.files[0]; if (!f) return;
+      const r = new FileReader();
+      r.onload = () => { ceDownscale(r.result, f.type, (url) => embedCeImage(url, (f.name||'image').replace(/\.[a-z0-9]+$/i,''))); };
+      r.readAsDataURL(f);
+    };
+    input.click();
+  }
+  function ceDownscale(dataUrl, type, cb){
+    const approx = Math.ceil(dataUrl.length * 0.75);
+    if (approx <= 700*1024){ cb(dataUrl); return; }
+    const img = new Image();
+    img.onload = () => {
+      const s = Math.min(1, 1280/img.naturalWidth), w = Math.round(img.naturalWidth*s), h = Math.round(img.naturalHeight*s);
+      try { const cv = document.createElement('canvas'); cv.width=w; cv.height=h; cv.getContext('2d').drawImage(img,0,0,w,h);
+        const out = cv.toDataURL(type==='image/png'?'image/png':'image/jpeg', 0.82); cb(out.length < dataUrl.length ? out : dataUrl);
+      } catch(e){ cb(dataUrl); }
+    };
+    img.onerror = () => cb(dataUrl);
+    img.src = dataUrl;
+  }
+  function embedCeImage(dataUrl, name){
+    const images = currentEntry.images || (currentEntry.images = {});
+    const key = 'img' + (Object.keys(images).length + 1);
+    images[key] = dataUrl;
+    if (ceEditMode === 'md'){ edInsertMd('![' + (name||'image') + '](#' + key + ')\n'); }
+    else {
+      const fig = document.createElement('figure'); fig.setAttribute('contenteditable','false'); fig.setAttribute('data-token','#'+key);
+      const im = document.createElement('img'); im.src = dataUrl; im.alt = name || 'image'; fig.appendChild(im);
+      if (name){ const fc = document.createElement('figcaption'); fc.setAttribute('contenteditable','false'); fc.textContent = name; fig.appendChild(fc); }
+      edInsertNodeAtCaret(fig);
+    }
+  }
+
+  function dispatchCeCmd(cmd){
+    if (editingPos === null) return;
+    if (ceEditMode === 'md'){
+      switch(cmd){
+        case 'bold': return edWrapMd('**','**'); case 'italic': return edWrapMd('*','*');
+        case 'mark': return edWrapMd('==','=='); case 'code': return edWrapMd('`','`'); case 'occlude': return edWrapMd('{{','}}');
+        case 'h3': return edInsertMd('### Sub-heading\n'); case 'ul': return edInsertMd('- item one\n- item two\n- item three\n');
+        case 'ol': return edInsertMd('1. first\n2. second\n3. third\n'); case 'quote': return edInsertMd('> quoted line\n');
+        case 'table': return edInsertMd('| Feature | A | B |\n|---|---|---|\n| \u2014 | \u2014 | \u2014 |\n');
+        case 'image': return pickCeImage();
+        case 'fig': { const label = prompt('Figure label (e.g. "Fig 7.4"):','Fig '); if (label) edInsertMd('{{fig: ' + label + '}}\n'); return; }
+      }
+      return;
+    }
+    switch(cmd){
+      case 'bold': ceCardBody.focus(); document.execCommand('bold'); return;
+      case 'italic': ceCardBody.focus(); document.execCommand('italic'); return;
+      case 'mark': ceCardBody.focus(); return edToggleTag('mark');
+      case 'code': ceCardBody.focus(); return edToggleTag('code');
+      case 'occlude': return edOccludeSelection();
+      case 'h3': case 'ul': case 'ol': case 'quote': case 'table': case 'fig': return edInsertBlockVisual(cmd);
+      case 'image': return pickCeImage();
+    }
+  }
+
+  // Visual <-> MD mode switch: commits whatever is in the currently active
+  // surface into markdown, then renders that markdown into the OTHER surface,
+  // so switching back and forth never loses an edit.
+  function updateCeModeSwitch(){
+    document.querySelectorAll('#ceModeSwitch button').forEach(b => b.classList.toggle('on', b.dataset.em === ceEditMode));
+  }
+  document.getElementById('ceModeSwitch').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b || editingPos === null) return;
+    const target = b.dataset.em; if (target === ceEditMode) return;
+    const images = currentEntry.images || (currentEntry.images = {});
+    if (target === 'md'){
+      const md = editHtmlToMd(ceCardBody, images);
+      ceMdArea.value = md;
+      ceCardBody.style.display = 'none'; ceMdArea.style.display = '';
+      editingBodyEl = null; hideEdFloatbar();
+    } else {
+      const item = cardIndexList.find(c => c.pos === editingPos);
+      const cardId = item ? engineCard(item.card).id : 'c0';
+      ceCardBody.innerHTML = mdToEditHtml(ceMdArea.value, cardId, currentEntry, images);
+      ceMdArea.style.display = 'none'; ceCardBody.style.display = '';
+      editingBodyEl = ceCardBody;
+    }
+    ceEditMode = target;
+    updateCeModeSwitch();
+  });
 
   function saveCardEditor(){
     if (editingPos === null) return;
@@ -2100,7 +2302,7 @@ Here is the source document to convert:
     const images = currentEntry.images || (currentEntry.images = {});
     item.card.title = ceCardTitle.textContent.trim();
     item.card.tag = ceTag.value.trim();
-    item.card.body = editHtmlToMd(ceCardBody, images);
+    item.card.body = ceEditMode === 'md' ? ceMdArea.value : editHtmlToMd(ceCardBody, images);
     item.title = item.card.title; item.body = item.card.body;
     persistEntry(currentEntry);
     // rebuild the feed panel from the updated card data so read mode reflects
@@ -2130,10 +2332,10 @@ Here is the source document to convert:
     if (editBadge){ openCardEditor(parseInt(editBadge.dataset.pos, 10)); return; }
   });
 
-  // floating selection toolbar inside the card editor
+  // floating selection toolbar inside the card editor (visual mode only)
   const edFloatbar = document.getElementById('edFloatbar');
   function updateEdFloatbar(){
-    if (editingPos === null || !editingBodyEl){ hideEdFloatbar(); return; }
+    if (editingPos === null || !editingBodyEl || ceEditMode !== 'visual'){ hideEdFloatbar(); return; }
     const sel = window.getSelection();
     if (!sel.rangeCount || sel.isCollapsed || !editingBodyEl.contains(sel.anchorNode)){ hideEdFloatbar(); return; }
     const r = sel.getRangeAt(0).getBoundingClientRect();
@@ -2154,6 +2356,30 @@ Here is the source document to convert:
     else if (cmd === 'code') edToggleTag('code');
     else if (cmd === 'occlude') edOccludeSelection();
   });
+
+  // the floating vertical tool palette — click to apply, drag the grip to move
+  cePalette.addEventListener('mousedown', (e) => { if (!e.target.closest('.cepal-grip')) e.preventDefault(); });
+  cePalette.addEventListener('click', (e) => {
+    const b = e.target.closest('.cepal-btn'); if (b) dispatchCeCmd(b.dataset.cmd);
+  });
+  (function wireCePaletteDrag(){
+    const grip = cePalette.querySelector('.cepal-grip'); if (!grip) return;
+    let dragging = false, ox = 0, oy = 0;
+    function point(e){ return e.touches ? {x:e.touches[0].clientX, y:e.touches[0].clientY} : {x:e.clientX, y:e.clientY}; }
+    function down(e){ dragging = true; const p = point(e), rect = cePalette.getBoundingClientRect(); ox = p.x-rect.left; oy = p.y-rect.top; cePalette.classList.add('dragging'); e.preventDefault(); }
+    function move(e){
+      if (!dragging) return;
+      const p = point(e);
+      let x = p.x - ox, y = p.y - oy;
+      x = Math.max(6, Math.min(window.innerWidth - 50, x));
+      y = Math.max(6, Math.min(window.innerHeight - 50, y));
+      cePalettePos = {x,y};
+      cePalette.style.left = x + 'px'; cePalette.style.top = y + 'px'; cePalette.style.transform = 'none';
+    }
+    function up(){ dragging = false; cePalette.classList.remove('dragging'); }
+    grip.addEventListener('mousedown', down); document.addEventListener('mousemove', move); document.addEventListener('mouseup', up);
+    grip.addEventListener('touchstart', down, {passive:false}); document.addEventListener('touchmove', move, {passive:false}); document.addEventListener('touchend', up);
+  })();
 
   /* ============================================================================
      OCCLUSION STUDY SESSION
