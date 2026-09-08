@@ -424,7 +424,7 @@
   .body .occ-chip.flagged{ background:rgba(192,57,43,0.1); border-color:#c0392b; color:#8a2e26; }
 
   /* inline selection floatbar for edit mode */
-  .edFloatbar{ position:fixed; z-index:220; display:none; align-items:center; gap:2px; background:#1a1712;
+  .edFloatbar{ position:fixed; z-index:296; display:none; align-items:center; gap:2px; background:#1a1712;
     border-radius:11px; padding:5px; box-shadow:0 16px 36px -12px rgba(0,0,0,0.5); transform:translate(-50%,-13px); }
   .edFloatbar.show{ display:flex; }
   .edFloatbar::after{ content:""; position:absolute; left:50%; bottom:-5px; transform:translateX(-50%) rotate(45deg);
@@ -433,6 +433,32 @@
     align-items:center; justify-content:center; font-size:13px; border:none; background:transparent; }
   .edfb:hover{ background:rgba(255,255,255,0.12); color:#fff; }
   .edfb-sep{ width:1px; height:18px; background:rgba(255,255,255,0.16); margin:0 3px; }
+
+  /* table row/column controls — shown while the caret is inside a table cell
+     in the card editor */
+  .tableToolbar{ position:fixed; z-index:296; display:none; align-items:center; gap:4px; background:#1a1712;
+    border-radius:10px; padding:5px; box-shadow:0 16px 36px -12px rgba(0,0,0,0.5); transform:translate(-50%,-8px); }
+  .tableToolbar.show{ display:flex; }
+  .tableToolbar button{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:#e6e2d8; padding:7px 10px;
+    border-radius:7px; background:rgba(255,255,255,0.06); white-space:nowrap; }
+  .tableToolbar button:hover{ background:rgba(255,255,255,0.16); }
+  .tableToolbar button.ttDanger{ color:#e79b93; }
+  .tableToolbar button.ttDanger:hover{ background:rgba(192,57,43,0.25); }
+  .tableToolbar .ttSep{ width:1px; height:18px; background:rgba(255,255,255,0.16); margin:0 2px; }
+
+  /* image lightbox — tap any card image to zoom; pinch/scroll to zoom, drag to
+     pan, double-tap/click to reset. The only place zoom gestures are allowed. */
+  .imgLightbox{ position:fixed; inset:0; z-index:400; background:rgba(10,9,7,0.94); display:none;
+    align-items:center; justify-content:center; touch-action:none; }
+  .imgLightbox.show{ display:flex; }
+  .imgLightbox .lbStage{ width:100%; height:100%; overflow:hidden; display:flex; align-items:center; justify-content:center; touch-action:none; }
+  .imgLightbox img{ max-width:100%; max-height:100%; transform-origin:center center; user-select:none; -webkit-user-drag:none; touch-action:none; }
+  .imgLightbox .lbClose{ position:absolute; top:calc(14px + env(safe-area-inset-top)); right:16px; width:40px; height:40px;
+    border-radius:50%; background:rgba(255,255,255,0.12); color:#fff; display:flex; align-items:center; justify-content:center; border:none; }
+  .imgLightbox .lbClose:hover{ background:rgba(255,255,255,0.22); }
+  .imgLightbox .lbHint{ position:absolute; bottom:calc(18px + env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%);
+    font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:rgba(255,255,255,0.5); }
+  .body figure.card-figure img, .ceCard figure img{ cursor:zoom-in; }
 
   /* ---- cram resume banner + confirm dialogs ---- */
   .cramResume{ position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(20px); background:#1a1712;
@@ -804,8 +830,22 @@
     <button class="edfb" data-cmd="occlude" title="Occlude (Ctrl/Cmd+O)">&#9672;</button>
   </div>
 
+  <div class="tableToolbar" id="tableToolbar">
+    <button data-tt="addrow">+ Row</button>
+    <button data-tt="addcol">+ Col</button>
+    <span class="ttSep"></span>
+    <button data-tt="delrow" class="ttDanger">&minus; Row</button>
+    <button data-tt="delcol" class="ttDanger">&minus; Col</button>
+  </div>
+
   <div class="cramResume" id="cramResume"></div>
   <div class="confirmModal" id="confirmModal"><div class="confirmBox" id="confirmBox"></div></div>
+
+  <div class="imgLightbox" id="imgLightbox">
+    <div class="lbStage" id="lbStage"><img id="lbImg" alt=""></div>
+    <button class="lbClose" id="lbClose" aria-label="Close">&#10005;</button>
+    <div class="lbHint">pinch or scroll to zoom &middot; drag to pan &middot; double-tap to reset</div>
+  </div>
 
   <div class="cardEditorScreen" id="cardEditorScreen">
     <div class="ceHeader">
@@ -1666,8 +1706,8 @@ Here is the source document to convert:
       if (isRow && sep){
         const header=edSplitRow(ln); let j=i+2; const rows=[];
         while (j<lines.length && /^\s*\|.*\|\s*$/.test(lines[j])){ rows.push(edSplitRow(lines[j])); j++; }
-        out.push('<table><thead><tr>'+header.map(h=>'<th>'+edInlineWithOcc(h,cardId,entry)+'</th>').join('')+'</tr></thead><tbody>'+
-          rows.map(r=>'<tr>'+r.map(c=>'<td>'+edInlineWithOcc(c,cardId,entry)+'</td>').join('')+'</tr>').join('')+'</tbody></table>');
+        out.push('<div class="short-table-wrap"><table class="short-table"><thead><tr>'+header.map(h=>'<th>'+edInlineWithOcc(h,cardId,entry)+'</th>').join('')+'</tr></thead><tbody>'+
+          rows.map(r=>'<tr>'+r.map(c=>'<td>'+edInlineWithOcc(c,cardId,entry)+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>');
         i=j; continue;
       }
       out.push(ln); i++;
@@ -1675,7 +1715,7 @@ Here is the source document to convert:
     const text = out.join('\n');
     return text.split(/\n{2,}/).map(chunk => {
       const c = chunk.trim(); if(!c) return '';
-      if (/^<table/.test(c)) return c;
+      if (/^<div class="short-table-wrap">/.test(c)) return c;
       const fig = c.match(/^\{\{\s*fig\s*:\s*(.+?)\s*\}\}$/i);
       if (fig) return '<div class="fig-ref" contenteditable="false">\uD83D\uDCD6 See '+escapeHtml(fig[1])+' in the textbook</div>';
       const im = c.match(/^!\[([^\]]*)\]\((\S+?)\)$/);
@@ -2170,13 +2210,16 @@ Here is the source document to convert:
     } else ceCardBody.appendChild(node);
   }
   function edBuildTableNode(header, rows){
-    const t = document.createElement('table'), thead = document.createElement('thead'), htr = document.createElement('tr');
+    const wrap = document.createElement('div'); wrap.className = 'short-table-wrap';
+    const t = document.createElement('table'); t.className = 'short-table';
+    const thead = document.createElement('thead'), htr = document.createElement('tr');
     header.forEach(h => { const th = document.createElement('th'); th.textContent = h; htr.appendChild(th); });
     thead.appendChild(htr); t.appendChild(thead);
     const tb = document.createElement('tbody');
     rows.forEach(r => { const tr = document.createElement('tr'); r.forEach(c => { const td = document.createElement('td'); td.textContent = c; tr.appendChild(td); }); tb.appendChild(tr); });
     t.appendChild(tb);
-    return t;
+    wrap.appendChild(t);
+    return wrap;
   }
   function edInsertBlockVisual(kind){
     ceCardBody.focus();
@@ -2184,7 +2227,7 @@ Here is the source document to convert:
     if (kind === 'ul' || kind === 'ol'){ node = document.createElement(kind); ['item one','item two','item three'].forEach(x => { const li = document.createElement('li'); li.textContent = x; node.appendChild(li); }); }
     else if (kind === 'quote'){ node = document.createElement('blockquote'); node.textContent = 'quoted line'; }
     else if (kind === 'h3'){ node = document.createElement('h3'); node.className = 'card-subhead'; node.textContent = 'Sub-heading'; }
-    else if (kind === 'table'){ node = edBuildTableNode(['Feature','A','B'], [['\u2014','\u2014','\u2014'],['\u2014','\u2014','\u2014']]); }
+    else if (kind === 'table'){ node = edBuildTableNode(['Feature','A','B'], [['\u2014','\u2014','\u2014'],['\u2014','\u2014','\u2014'],['\u2014','\u2014','\u2014']]); }
     else if (kind === 'fig'){ const label = prompt('Figure label (e.g. "Fig 7.4"):','Fig '); if (!label) return; node = document.createElement('div'); node.className = 'fig-ref'; node.setAttribute('contenteditable','false'); node.textContent = '\uD83D\uDCD6 See ' + label + ' in the textbook'; }
     if (!node) return;
     edInsertNodeAtCaret(node);
@@ -2380,6 +2423,146 @@ Here is the source document to convert:
     grip.addEventListener('mousedown', down); document.addEventListener('mousemove', move); document.addEventListener('mouseup', up);
     grip.addEventListener('touchstart', down, {passive:false}); document.addEventListener('touchmove', move, {passive:false}); document.addEventListener('touchend', up);
   })();
+
+  /* ============================================================================
+     IMAGE LIGHTBOX — tap any card image (in the reading feed, study/cram, or
+     the card editor) to open a full-screen zoomable preview. This is the only
+     place pinch/scroll-zoom is allowed; the page itself never zooms.
+     ========================================================================= */
+  const imgLightbox = document.getElementById('imgLightbox');
+  const lbStage = document.getElementById('lbStage');
+  const lbImg = document.getElementById('lbImg');
+  let lb = { scale:1, x:0, y:0 };
+  function applyLb(){ lbImg.style.transform = 'translate(' + lb.x + 'px,' + lb.y + 'px) scale(' + lb.scale + ')'; }
+  function openLightbox(src, alt){
+    lbImg.src = src; lbImg.alt = alt || '';
+    lb = { scale:1, x:0, y:0 }; applyLb();
+    imgLightbox.classList.add('show');
+  }
+  function closeLightbox(){ imgLightbox.classList.remove('show'); }
+  document.getElementById('lbClose').addEventListener('click', closeLightbox);
+  imgLightbox.addEventListener('click', (e) => { if (e.target === imgLightbox || e.target === lbStage) closeLightbox(); });
+  lbStage.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const d = -e.deltaY * 0.0015;
+    lb.scale = Math.min(6, Math.max(1, lb.scale + d));
+    if (lb.scale === 1){ lb.x = 0; lb.y = 0; }
+    applyLb();
+  }, {passive:false});
+  let lbLastTap = 0;
+  lbStage.addEventListener('click', () => { const n = Date.now(); if (n - lbLastTap < 300){ lb = {scale:1,x:0,y:0}; applyLb(); } lbLastTap = n; });
+  let lbStartDist = 0, lbStartScale = 1, lbPanStart = null, lbBase = {x:0,y:0};
+  function lbDist(t){ return Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY); }
+  lbStage.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 2){ lbStartDist = lbDist(e.touches); lbStartScale = lb.scale; }
+    else if (e.touches.length === 1 && lb.scale > 1){ lbPanStart = {x:e.touches[0].clientX, y:e.touches[0].clientY}; lbBase = {x:lb.x, y:lb.y}; }
+  }, {passive:false});
+  lbStage.addEventListener('touchmove', (e) => {
+    if (e.touches.length === 2){
+      e.preventDefault();
+      const r = lbDist(e.touches) / lbStartDist;
+      lb.scale = Math.min(6, Math.max(1, lbStartScale * r));
+      if (lb.scale === 1){ lb.x = 0; lb.y = 0; }
+      applyLb();
+    } else if (e.touches.length === 1 && lbPanStart && lb.scale > 1){
+      e.preventDefault();
+      lb.x = lbBase.x + (e.touches[0].clientX - lbPanStart.x);
+      lb.y = lbBase.y + (e.touches[0].clientY - lbPanStart.y);
+      applyLb();
+    }
+  }, {passive:false});
+  lbStage.addEventListener('touchend', (e) => { if (e.touches.length === 0) lbPanStart = null; });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && imgLightbox.classList.contains('show')) closeLightbox(); });
+
+  // wire image taps: reading feed (any mode) and the card editor
+  main.addEventListener('click', (e) => {
+    const img = e.target.closest('figure.card-figure img');
+    if (img){ openLightbox(img.src, img.alt); }
+  });
+  ceCardBody.addEventListener('click', (e) => {
+    const img = e.target.closest('figure img');
+    if (img){ openLightbox(img.src, img.alt); }
+  });
+
+  /* ============================================================================
+     TABLE ROW/COLUMN CONTROLS — a small toolbar appears while the caret sits
+     inside a table cell in the card editor, with buttons to add or remove a
+     row/column (contenteditable gives no native way to do this, so dedicated
+     controls are the only usable path).
+     ========================================================================= */
+  const tableToolbar = document.getElementById('tableToolbar');
+  let currentTableCell = null;
+  function updateTableToolbar(){
+    if (editingPos === null || ceEditMode !== 'visual'){ hideTableToolbar(); return; }
+    const sel = window.getSelection();
+    if (!sel.rangeCount){ hideTableToolbar(); return; }
+    let node = sel.anchorNode;
+    const el = node && (node.nodeType === 1 ? node : node.parentElement);
+    const cell = el && el.closest ? el.closest('td,th') : null;
+    if (!cell || !ceCardBody.contains(cell)){ hideTableToolbar(); return; }
+    currentTableCell = cell;
+    const r = cell.getBoundingClientRect();
+    tableToolbar.style.left = (r.left + r.width/2) + 'px';
+    tableToolbar.style.top = (r.top - 8) + 'px';
+    tableToolbar.classList.add('show');
+  }
+  function hideTableToolbar(){ tableToolbar.classList.remove('show'); currentTableCell = null; }
+  document.addEventListener('selectionchange', updateTableToolbar);
+  tableToolbar.addEventListener('mousedown', (e) => e.preventDefault());
+  tableToolbar.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b || !currentTableCell) return;
+    const action = b.dataset.tt;
+    if (action === 'addrow') addTableRow();
+    else if (action === 'addcol') addTableCol();
+    else if (action === 'delrow') removeTableRow();
+    else if (action === 'delcol') removeTableCol();
+  });
+  function repositionTableToolbar(){
+    if (!currentTableCell || !document.body.contains(currentTableCell)){ hideTableToolbar(); return; }
+    const r = currentTableCell.getBoundingClientRect();
+    tableToolbar.style.left = (r.left + r.width/2) + 'px';
+    tableToolbar.style.top = (r.top - 8) + 'px';
+  }
+  function addTableRow(){
+    const table = currentTableCell.closest('table'); if (!table) return;
+    const inHeader = currentTableCell.tagName.toLowerCase() === 'th';
+    const cellCount = currentTableCell.parentNode.children.length;
+    const newRow = document.createElement('tr');
+    for (let i = 0; i < cellCount; i++){ const td = document.createElement('td'); td.textContent = '\u2014'; newRow.appendChild(td); }
+    let tbody = table.querySelector('tbody');
+    if (!tbody){ tbody = document.createElement('tbody'); table.appendChild(tbody); }
+    if (inHeader){ tbody.insertBefore(newRow, tbody.firstChild); }
+    else { const tr = currentTableCell.closest('tr'); tr.parentNode.insertBefore(newRow, tr.nextSibling); }
+    repositionTableToolbar();
+  }
+  function addTableCol(){
+    const table = currentTableCell.closest('table'); if (!table) return;
+    const cellIndex = Array.prototype.indexOf.call(currentTableCell.parentNode.children, currentTableCell);
+    Array.prototype.forEach.call(table.querySelectorAll('tr'), (tr) => {
+      const isHeaderRow = tr.parentNode.tagName.toLowerCase() === 'thead';
+      const cell = document.createElement(isHeaderRow ? 'th' : 'td');
+      cell.textContent = isHeaderRow ? 'New' : '\u2014';
+      const ref = tr.children[cellIndex];
+      tr.insertBefore(cell, ref ? ref.nextSibling : null);
+    });
+    repositionTableToolbar();
+  }
+  function removeTableRow(){
+    const tr = currentTableCell.closest('tr'); if (!tr) return;
+    const parent = tr.parentNode;
+    if (parent.tagName.toLowerCase() !== 'tbody') return; // never remove the header row this way
+    if (parent.children.length <= 1) return; // keep at least one data row
+    tr.remove();
+    hideTableToolbar();
+  }
+  function removeTableCol(){
+    const table = currentTableCell.closest('table'); if (!table) return;
+    const headerRow = table.querySelector('thead tr');
+    if (headerRow && headerRow.children.length <= 1) return; // keep at least one column
+    const cellIndex = Array.prototype.indexOf.call(currentTableCell.parentNode.children, currentTableCell);
+    Array.prototype.forEach.call(table.querySelectorAll('tr'), (tr) => { if (tr.children[cellIndex]) tr.children[cellIndex].remove(); });
+    hideTableToolbar();
+  }
 
   /* ============================================================================
      OCCLUSION STUDY SESSION
